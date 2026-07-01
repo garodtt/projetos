@@ -4,11 +4,14 @@ import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
+import Spinner from './components/Spinner';
 
 export default function App() {
   const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [currentProject, setCurrentProject] = useState(null);
+  const [projectLoading, setProjectLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('activities');
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState('new');
@@ -16,8 +19,9 @@ export default function App() {
   const loadProjects = useCallback(async () => {
     const { data, error } = await supabase
       .from('projects').select('*').order('created_at', { ascending: false });
-    if (error) { alert('Erro ao carregar projetos: ' + error.message); return; }
+    if (error) { alert('Erro ao carregar projetos: ' + error.message); setProjectsLoading(false); return; }
     setProjects(data);
+    setProjectsLoading(false);
   }, []);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
@@ -35,11 +39,14 @@ export default function App() {
   }
 
   async function selectProject(id) {
+    if (id === currentProjectId) return;
     setCurrentProjectId(id);
+    setProjectLoading(true);
     setActiveTab('activities');
     const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
-    if (error) { alert('Erro ao carregar projeto: ' + error.message); return; }
+    if (error) { alert('Erro ao carregar projeto: ' + error.message); setProjectLoading(false); return; }
     setCurrentProject(data);
+    setProjectLoading(false);
   }
 
   function openNewProjectModal() {
@@ -56,6 +63,7 @@ export default function App() {
     setProjectModalOpen(false);
     await loadProjects();
     if (isNew) await createDefaultColumns(savedProject.id);
+    setCurrentProjectId(null);
     selectProject(savedProject.id);
   }
 
@@ -63,6 +71,7 @@ export default function App() {
     <div className="app">
       <Sidebar
         projects={projects}
+        loading={projectsLoading}
         currentProjectId={currentProjectId}
         onSelect={selectProject}
         onNewProject={openNewProjectModal}
@@ -73,7 +82,11 @@ export default function App() {
           <div className="empty-state"><p>Selecione um projeto na lateral ou crie um novo para começar.</p></div>
         )}
 
-        {currentProjectId && currentProject && (
+        {currentProjectId && projectLoading && (
+          <div className="empty-state"><Spinner /></div>
+        )}
+
+        {currentProjectId && !projectLoading && currentProject && (
           <>
             <div className="project-header">
               <h1>{currentProject.name}</h1>

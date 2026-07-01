@@ -85,3 +85,20 @@ button.small { padding:6px 10px; font-size:13px; }
   .project-header { flex-wrap: wrap; }
   .drawio-frame { height: 50vh; }
 }
+
+.spinner { width:28px; height:28px; border:3px solid #ddd; border-top-color:#2563eb; border-radius:50%; margin:40px auto; animation:spin 0.7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.sidebar-empty { color:#9ca3af; font-size:13px; text-align:center; margin-top:12px; }
+
+.toast-stack { position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:100; }
+.toast { background:#111827; color:#fff; padding:10px 16px; border-radius:6px; font-size:14px; box-shadow:0 2px 8px rgba(0,0,0,0.2); animation:toast-in 0.2s ease; }
+@keyframes toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.kanban-card.drag-over-before { box-shadow:0 -3px 0 0 #2563eb; }
+.kanban-card.drag-over-after { box-shadow:0 3px 0 0 #2563eb; }
+
+@media (max-width: 768px) {
+  .toast-stack { left:12px; right:12px; align-items:center; }
+  .toast { width:100%; text-align:center; }
+}

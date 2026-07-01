@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import DiagramModal from './DiagramModal';
+import Spinner from '../Spinner';
 
 export default function DiagramsSection({ projectId }) {
   const [diagrams, setDiagrams] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeDiagram, setActiveDiagram] = useState(null);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from('diagrams').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
-    if (error) { alert('Erro ao carregar diagramas: ' + error.message); return; }
+    if (error) { alert('Erro ao carregar diagramas: ' + error.message); setLoading(false); return; }
     setDiagrams(data);
+    setLoading(false);
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
@@ -25,17 +28,22 @@ export default function DiagramsSection({ projectId }) {
         <h3>Diagramas</h3>
         <button className="primary small" onClick={openNew}>+ Novo Diagrama</button>
       </div>
-      <div className="diagrams-grid">
-        {diagrams.length === 0 && <p className="empty-state">Nenhum diagrama ainda.</p>}
-        {diagrams.map(d => (
-          <div key={d.id} className="diagram-card" onClick={() => openExisting(d)}>
-            <strong>{d.title}</strong>
-            <div className="diagram-thumb">
-              {d.diagram_svg && <img src={d.diagram_svg} alt="" />}
+
+      {loading ? (
+        <Spinner />
+      ) : (
+        <div className="diagrams-grid">
+          {diagrams.length === 0 && <p className="empty-state">Nenhum diagrama ainda.</p>}
+          {diagrams.map(d => (
+            <div key={d.id} className="diagram-card" onClick={() => openExisting(d)}>
+              <strong>{d.title}</strong>
+              <div className="diagram-thumb">
+                {d.diagram_svg && <img src={d.diagram_svg} alt="" />}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {modalOpen && (
         <DiagramModal

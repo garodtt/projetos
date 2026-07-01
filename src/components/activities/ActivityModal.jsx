@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME } from '../../constants';
+import { useToast } from '../Toast';
 
 export default function ActivityModal({ projectId, activity, onClose, onSaved }) {
+  const showToast = useToast();
   const isEditing = Boolean(activity);
   const [type, setType] = useState(activity?.type || 'reuniao');
   const [personName, setPersonName] = useState(activity?.person_name || '');
@@ -30,6 +32,12 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved })
   async function createTaskFromActivity(payloadActivity) {
     const columnId = await getOrCreateUnassignedColumnId();
     if (!columnId) return;
+
+    const { data: existingCards } = await supabase
+      .from('versions').select('position').eq('column_id', columnId)
+      .order('position', { ascending: false }).limit(1);
+    const nextPosition = existingCards && existingCards.length ? (existingCards[0].position ?? -1) + 1 : 0;
+
     const { error } = await supabase.from('versions').insert({
       project_id: projectId,
       column_id: columnId,
@@ -37,6 +45,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved })
       requester_name: payloadActivity.person_name,
       change_date: payloadActivity.activity_date,
       description: payloadActivity.description,
+      position: nextPosition,
     });
     if (error) alert('Erro ao criar tarefa a partir da solicitação: ' + error.message);
   }
@@ -64,7 +73,12 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved })
     if (result.error) { alert('Erro ao salvar atividade: ' + result.error.message); return; }
 
     const shouldGoToTasks = !isEditing && type !== 'reuniao';
-    if (shouldGoToTasks) await createTaskFromActivity(payload);
+    if (shouldGoToTasks) {
+      await createTaskFromActivity(payload);
+      showToast('Atividade salva e tarefa criada em "Não atribuídos"');
+    } else {
+      showToast(isEditing ? 'Atividade atualizada' : 'Atividade salva');
+    }
     onSaved(shouldGoToTasks);
   }
 
@@ -73,6 +87,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved })
     if (!confirm('Excluir esta atividade?')) return;
     const { error } = await supabase.from('activities').delete().eq('id', activity.id);
     if (error) { alert('Erro ao excluir atividade: ' + error.message); return; }
+    showToast('Atividade excluída');
     onSaved(false);
   }
 

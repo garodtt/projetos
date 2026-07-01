@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useToast } from './Toast';
 
 export default function ProjectModal({ mode, project, onClose, onSaved }) {
+  const showToast = useToast();
   const [form, setForm] = useState({
     name: project?.name || '',
     description: project?.description || '',
@@ -30,6 +32,7 @@ export default function ProjectModal({ mode, project, onClose, onSaved }) {
       result = await supabase.from('projects').insert(payload).select().single();
     }
     if (result.error) { alert('Erro ao salvar projeto: ' + result.error.message); return; }
+    showToast(mode === 'edit' ? 'Projeto atualizado' : 'Projeto criado');
     onSaved(result.data, mode !== 'edit');
   }
 

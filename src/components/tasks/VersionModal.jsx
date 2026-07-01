@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { useToast } from '../Toast';
 
-export default function VersionModal({ projectId, columnId, version, onClose, onSaved }) {
+export default function VersionModal({ projectId, columnId, version, nextPosition, onClose, onSaved }) {
+  const showToast = useToast();
   const isEditing = Boolean(version);
   const [label, setLabel] = useState(version?.version_label || '');
   const [requester, setRequester] = useState(version?.requester_name || '');
@@ -20,9 +22,10 @@ export default function VersionModal({ projectId, columnId, version, onClose, on
     if (isEditing) {
       result = await supabase.from('versions').update(payload).eq('id', version.id);
     } else {
-      result = await supabase.from('versions').insert({ ...payload, project_id: projectId, column_id: columnId });
+      result = await supabase.from('versions').insert({ ...payload, project_id: projectId, column_id: columnId, position: nextPosition ?? 0 });
     }
     if (result.error) { alert('Erro ao salvar item: ' + result.error.message); return; }
+    showToast(isEditing ? 'Item atualizado' : 'Item criado');
     onSaved();
   }
 
@@ -31,6 +34,7 @@ export default function VersionModal({ projectId, columnId, version, onClose, on
     if (!confirm('Excluir este item?')) return;
     const { error } = await supabase.from('versions').delete().eq('id', version.id);
     if (error) { alert('Erro ao excluir item: ' + error.message); return; }
+    showToast('Item excluído');
     onSaved();
   }
 
