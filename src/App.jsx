@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
+import { UNASSIGNED_COLUMN_NAME } from './constants';
 import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
@@ -9,6 +10,7 @@ import Spinner from './components/Spinner';
 export default function App() {
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [pendingCounts, setPendingCounts] = useState({});
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [currentProject, setCurrentProject] = useState(null);
   const [projectLoading, setProjectLoading] = useState(false);
@@ -24,7 +26,32 @@ export default function App() {
     setProjectsLoading(false);
   }, []);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  const loadPendingCounts = useCallback(async () => {
+    const { data: unassignedCols, error: colsError } = await supabase
+      .from('kanban_columns').select('id, project_id').eq('name', UNASSIGNED_COLUMN_NAME);
+    if (colsError) { console.error(colsError); return; }
+    if (!unassignedCols || !unassignedCols.length) { setPendingCounts({}); return; }
+
+    const colIds = unassignedCols.map(c => c.id);
+    const { data: cards, error: cardsError } = await supabase
+      .from('versions').select('column_id').in('column_id', colIds);
+    if (cardsError) { console.error(cardsError); return; }
+
+    const colToProject = {};
+    unassignedCols.forEach(c => { colToProject[c.id] = c.project_id; });
+
+    const counts = {};
+    cards.forEach(v => {
+      const pid = colToProject[v.column_id];
+      if (pid) counts[pid] = (counts[pid] || 0) + 1;
+    });
+    setPendingCounts(counts);
+  }, []);
+
+  useEffect(() => {
+    loadProjects();
+    loadPendingCounts();
+  }, [loadProjects, loadPendingCounts]);
 
   async function createDefaultColumns(projectId) {
     const defaults = [
@@ -72,6 +99,7 @@ export default function App() {
       <Sidebar
         projects={projects}
         loading={projectsLoading}
+        pendingCounts={pendingCounts}
         currentProjectId={currentProjectId}
         onSelect={selectProject}
         onNewProject={openNewProjectModal}
@@ -99,10 +127,14 @@ export default function App() {
             </div>
 
             <div className={'panel' + (activeTab === 'activities' ? ' active' : '')}>
-              <ActivitiesTab projectId={currentProjectId} onActivityConvertedToTask={() => setActiveTab('kanban')} />
+              <ActivitiesTab
+                projectId={currentProjectId}
+                onActivityConvertedToTask={() => setActiveTab('kanban')}
+                onDataChanged={loadPendingCounts}
+              />
             </div>
             <div className={'panel' + (activeTab === 'kanban' ? ' active' : '')}>
-              <TasksTab projectId={currentProjectId} />
+              <TasksTab projectId={currentProjectId} onDataChanged={loadPendingCounts} />
             </div>
           </>
         )}

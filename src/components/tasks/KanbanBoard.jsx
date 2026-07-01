@@ -5,7 +5,7 @@ import VersionModal from './VersionModal';
 import Spinner from '../Spinner';
 import { useToast } from '../Toast';
 
-export default function KanbanBoard({ projectId }) {
+export default function KanbanBoard({ projectId, onDataChanged }) {
   const showToast = useToast();
   const [columns, setColumns] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -27,7 +27,8 @@ export default function KanbanBoard({ projectId }) {
     setColumns(colsRes.data);
     setVersions(versionsRes.data);
     setLoading(false);
-  }, [projectId]);
+    onDataChanged?.();
+  }, [projectId, onDataChanged]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -164,47 +165,54 @@ export default function KanbanBoard({ projectId }) {
         <p className="empty-state">Crie uma coluna para começar.</p>
       ) : (
         <div className="kanban-board">
-          {sortedColumns.map((col, idx) => (
-            <div key={col.id} className="kanban-column">
-              <div className="kanban-column-header">
-                <div className="col-header-main">
-                  <button className="icon-btn" disabled={idx === 0} onClick={() => moveColumn(col, 'left')} aria-label="Mover coluna para a esquerda">←</button>
-                  <span className="col-name" onClick={() => renameColumn(col)}>{col.name}</span>
-                  <button className="icon-btn" disabled={idx === sortedColumns.length - 1} onClick={() => moveColumn(col, 'right')} aria-label="Mover coluna para a direita">→</button>
-                </div>
-                <button className="icon-btn delete-col" onClick={() => deleteColumn(col)} aria-label="Excluir coluna">✕</button>
-              </div>
-
-              <div
-                className="kanban-column-body"
-                onDragOver={e => e.preventDefault()}
-                onDrop={() => handleDropOnColumnBody(col.id)}
-              >
-                {cardsInColumn(col.id).map(v => (
-                  <div
-                    key={v.id}
-                    className={
-                      'kanban-card' +
-                      (draggedId === v.id ? ' dragging' : '') +
-                      (dragOverInfo?.cardId === v.id ? ' drag-over-' + dragOverInfo.position : '')
-                    }
-                    draggable
-                    onDragStart={() => setDraggedId(v.id)}
-                    onDragEnd={() => { setDraggedId(null); setDragOverInfo(null); }}
-                    onDragOver={e => handleCardDragOver(e, v)}
-                    onDrop={e => handleDropOnCard(e, v)}
-                    onClick={() => openEditCard(v)}
-                  >
-                    <strong>{v.version_label}</strong>
-                    <small>{formatDate(v.change_date)} · {v.requester_name}</small>
-                    <p>{v.description || ''}</p>
+          {sortedColumns.map((col, idx) => {
+            const items = cardsInColumn(col.id);
+            return (
+              <div key={col.id} className="kanban-column">
+                <div className="kanban-column-header">
+                  <div className="col-header-main">
+                    <button className="icon-btn" disabled={idx === 0} onClick={() => moveColumn(col, 'left')} aria-label="Mover coluna para a esquerda">←</button>
+                    <span className="col-name" onClick={() => renameColumn(col)}>
+                      {col.name} <span className="col-count">({items.length})</span>
+                    </span>
+                    <button className="icon-btn" disabled={idx === sortedColumns.length - 1} onClick={() => moveColumn(col, 'right')} aria-label="Mover coluna para a direita">→</button>
                   </div>
-                ))}
-              </div>
+                  <button className="icon-btn delete-col" onClick={() => deleteColumn(col)} aria-label="Excluir coluna">✕</button>
+                </div>
 
-              <button className="kanban-add-card" onClick={() => openNewCard(col.id)}>+ Novo Item</button>
-            </div>
-          ))}
+                <div
+                  className="kanban-column-body"
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => handleDropOnColumnBody(col.id)}
+                >
+                  {items.map(v => (
+                    <div
+                      key={v.id}
+                      className={
+                        'kanban-card' +
+                        (v.priority === 'urgente' ? ' priority-urgente' : '') +
+                        (draggedId === v.id ? ' dragging' : '') +
+                        (dragOverInfo?.cardId === v.id ? ' drag-over-' + dragOverInfo.position : '')
+                      }
+                      draggable
+                      onDragStart={() => setDraggedId(v.id)}
+                      onDragEnd={() => { setDraggedId(null); setDragOverInfo(null); }}
+                      onDragOver={e => handleCardDragOver(e, v)}
+                      onDrop={e => handleDropOnCard(e, v)}
+                      onClick={() => openEditCard(v)}
+                    >
+                      {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
+                      <strong>{v.version_label}</strong>
+                      <small>{formatDate(v.change_date)} · {v.requester_name}</small>
+                      <p>{v.description || ''}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <button className="kanban-add-card" onClick={() => openNewCard(col.id)}>+ Novo Item</button>
+              </div>
+            );
+          })}
         </div>
       )}
 

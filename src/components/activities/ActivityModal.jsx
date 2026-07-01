@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME } from '../../constants';
 import { useToast } from '../Toast';
 
-export default function ActivityModal({ projectId, activity, onClose, onSaved }) {
+export default function ActivityModal({ projectId, activity, onClose, onSaved, onDataChanged }) {
   const showToast = useToast();
   const isEditing = Boolean(activity);
   const [type, setType] = useState(activity?.type || 'reuniao');
@@ -46,8 +46,10 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved })
       change_date: payloadActivity.activity_date,
       description: payloadActivity.description,
       position: nextPosition,
+      priority: payloadActivity.type === 'correcao' ? 'urgente' : 'normal',
     });
-    if (error) alert('Erro ao criar tarefa a partir da solicitação: ' + error.message);
+    if (error) { alert('Erro ao criar tarefa a partir da solicitação: ' + error.message); return; }
+    onDataChanged?.();
   }
 
   async function handleSave() {

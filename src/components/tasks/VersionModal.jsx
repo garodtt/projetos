@@ -9,6 +9,7 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   const [requester, setRequester] = useState(version?.requester_name || '');
   const [date, setDate] = useState(version?.change_date || '');
   const [description, setDescription] = useState(version?.description || '');
+  const [priority, setPriority] = useState(version?.priority || 'normal');
 
   async function handleSave() {
     const version_label = label.trim();
@@ -17,7 +18,7 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
     const desc = description.trim();
     if (!version_label || !requester_name) { alert('Preencha a versão e quem solicitou.'); return; }
 
-    const payload = { version_label, requester_name, change_date, description: desc };
+    const payload = { version_label, requester_name, change_date, description: desc, priority };
     let result;
     if (isEditing) {
       result = await supabase.from('versions').update(payload).eq('id', version.id);
@@ -46,8 +47,19 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
         <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: v1.2.0" />
         <label>Quem solicitou</label>
         <input value={requester} onChange={e => setRequester(e.target.value)} placeholder="Nome" />
-        <label>Data da alteração</label>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        <div className="row">
+          <div>
+            <label>Data da alteração</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label>Prioridade</label>
+            <select value={priority} onChange={e => setPriority(e.target.value)}>
+              <option value="normal">Normal</option>
+              <option value="urgente">Urgente</option>
+            </select>
+          </div>
+        </div>
         <label>Descrição</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="O que foi alterado..." />
         <div className="actions">
