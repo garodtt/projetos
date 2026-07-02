@@ -55,6 +55,7 @@ export default function ActivitiesTab({ projectId, onActivityConvertedToTask, on
             <div key={a.id} className="card" onClick={() => openEdit(a)}>
               <span className={'tag ' + a.type}>{ACTIVITY_TAG_LABEL[a.type]}</span>
               <small> · {a.person_name} · {formatDate(a.activity_date)}{a.status ? ' · status: ' + a.status : ''}</small>
+              {a.image_url && <img className="activity-card-thumb" src={a.image_url} alt="" />}
               <p>{a.description}</p>
             </div>
           ))}

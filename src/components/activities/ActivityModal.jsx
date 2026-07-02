@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME } from '../../constants';
 import { useToast } from '../Toast';
@@ -11,6 +11,23 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
   const [date, setDate] = useState(activity?.activity_date || '');
   const [description, setDescription] = useState(activity?.description || '');
   const [status, setStatus] = useState(activity?.status || 'pendente');
+  const [imageUrl, setImageUrl] = useState(activity?.image_url || '');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  async function handleFileSelected(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    const ext = file.name.split('.').pop();
+    const path = `activities/${projectId}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file);
+    setUploading(false);
+    if (uploadError) { alert('Erro ao enviar imagem: ' + uploadError.message); return; }
+    const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(path);
+    setImageUrl(urlData.publicUrl);
+  }
 
   async function getOrCreateUnassignedColumnId() {
     const { data: existing, error: fetchError } = await supabase
@@ -47,6 +64,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       description: payloadActivity.description,
       position: nextPosition,
       priority: payloadActivity.type === 'correcao' ? 'urgente' : 'normal',
+      image_url: payloadActivity.image_url || null,
     });
     if (error) { alert('Erro ao criar tarefa a partir da solicitação: ' + error.message); return; }
     onDataChanged?.();
@@ -64,6 +82,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       activity_date,
       description: desc,
       status: type === 'reuniao' ? null : status,
+      image_url: type === 'reuniao' ? null : (imageUrl || null),
     };
 
     let result;
@@ -131,6 +150,24 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
         )}
         <label>{ACTIVITY_LABELS[type].desc}</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} />
+
+        {type !== 'reuniao' && (
+          <>
+            <label>Anexo (imagem)</label>
+            {imageUrl ? (
+              <div className="attachment-preview">
+                <img src={imageUrl} alt="Anexo" />
+                <button type="button" className="secondary small" onClick={() => setImageUrl('')}>Remover imagem</button>
+              </div>
+            ) : (
+              <button type="button" className="secondary small" onClick={() => fileInputRef.current.click()} disabled={uploading}>
+                {uploading ? 'Enviando...' : '+ Adicionar imagem'}
+              </button>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+          </>
+        )}
+
         <div className="actions">
           <button className="secondary" onClick={onClose}>Cancelar</button>
           {isEditing && <button className="danger push-left" onClick={handleDelete}>Excluir</button>}
