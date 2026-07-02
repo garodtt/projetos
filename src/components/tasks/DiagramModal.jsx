@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { DRAWIO_EMBED_URL, BLANK_DIAGRAM_XML } from '../../constants';
 import { useToast } from '../Toast';
 
-export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40, onClose, onSaved }) {
+export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40, zIndex = 1, onClose, onSaved }) {
   const showToast = useToast();
   const [mode, setMode] = useState(diagram ? 'view' : 'edit');
   const [title, setTitle] = useState(diagram?.title || '');
@@ -49,7 +49,7 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
       result = await supabase.from('panel_items').update(payload).eq('id', currentId).select().single();
     } else {
       result = await supabase.from('panel_items').insert({
-        ...payload, project_id: projectId, type: 'diagrama', pos_x: posX, pos_y: posY,
+        ...payload, project_id: projectId, type: 'diagrama', pos_x: posX, pos_y: posY, z_index: zIndex,
       }).select().single();
     }
     if (result.error) { alert('Erro ao salvar diagrama: ' + result.error.message); return; }
