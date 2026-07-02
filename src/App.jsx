@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
-import { UNASSIGNED_COLUMN_NAME } from './constants';
 import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
@@ -17,6 +16,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('activities');
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState('new');
+  const [taskRefreshTick, setTaskRefreshTick] = useState(0);
+
+  const bumpTaskRefresh = useCallback(() => setTaskRefreshTick(t => t + 1), []);
 
   const loadProjects = useCallback(async () => {
     const { data, error } = await supabase
@@ -27,18 +29,18 @@ export default function App() {
   }, []);
 
   const loadPendingCounts = useCallback(async () => {
-    const { data: unassignedCols, error: colsError } = await supabase
-      .from('kanban_columns').select('id, project_id').eq('name', UNASSIGNED_COLUMN_NAME);
+    const { data: indicatorCols, error: colsError } = await supabase
+      .from('kanban_columns').select('id, project_id').eq('is_indicator', true);
     if (colsError) { console.error(colsError); return; }
-    if (!unassignedCols || !unassignedCols.length) { setPendingCounts({}); return; }
+    if (!indicatorCols || !indicatorCols.length) { setPendingCounts({}); return; }
 
-    const colIds = unassignedCols.map(c => c.id);
+    const colIds = indicatorCols.map(c => c.id);
     const { data: cards, error: cardsError } = await supabase
       .from('versions').select('column_id').in('column_id', colIds);
     if (cardsError) { console.error(cardsError); return; }
 
     const colToProject = {};
-    unassignedCols.forEach(c => { colToProject[c.id] = c.project_id; });
+    indicatorCols.forEach(c => { colToProject[c.id] = c.project_id; });
 
     const counts = {};
     cards.forEach(v => {
@@ -131,10 +133,11 @@ export default function App() {
                 projectId={currentProjectId}
                 onActivityConvertedToTask={() => setActiveTab('kanban')}
                 onDataChanged={loadPendingCounts}
+                onTaskCreatedElsewhere={bumpTaskRefresh}
               />
             </div>
             <div className={'panel' + (activeTab === 'kanban' ? ' active' : '')}>
-              <TasksTab projectId={currentProjectId} onDataChanged={loadPendingCounts} />
+              <TasksTab projectId={currentProjectId} onDataChanged={loadPendingCounts} refreshTick={taskRefreshTick} />
             </div>
           </>
         )}

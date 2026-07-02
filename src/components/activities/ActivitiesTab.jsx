@@ -5,7 +5,7 @@ import { formatDate } from '../../utils/format';
 import ActivityModal from './ActivityModal';
 import Spinner from '../Spinner';
 
-export default function ActivitiesTab({ projectId, onActivityConvertedToTask, onDataChanged }) {
+export default function ActivitiesTab({ projectId, onActivityConvertedToTask, onDataChanged, onTaskCreatedElsewhere }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -69,6 +69,7 @@ export default function ActivitiesTab({ projectId, onActivityConvertedToTask, on
           onClose={() => setModalOpen(false)}
           onSaved={handleSaved}
           onDataChanged={onDataChanged}
+          onTaskCreatedElsewhere={onTaskCreatedElsewhere}
         />
       )}
     </div>

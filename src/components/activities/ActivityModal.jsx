@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME } from '../../constants';
 import { useToast } from '../Toast';
 
-export default function ActivityModal({ projectId, activity, onClose, onSaved, onDataChanged }) {
+export default function ActivityModal({ projectId, activity, onClose, onSaved, onDataChanged, onTaskCreatedElsewhere }) {
   const showToast = useToast();
   const isEditing = Boolean(activity);
   const [type, setType] = useState(activity?.type || 'reuniao');
@@ -40,7 +40,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
     const minPos = existing.length ? Math.min(...existing.map(c => c.position)) : 0;
     const { data, error } = await supabase
       .from('kanban_columns')
-      .insert({ project_id: projectId, name: UNASSIGNED_COLUMN_NAME, position: minPos - 1 })
+      .insert({ project_id: projectId, name: UNASSIGNED_COLUMN_NAME, position: minPos - 1, is_indicator: true })
       .select().single();
     if (error) { alert('Erro ao criar coluna "Não atribuídos": ' + error.message); return null; }
     return data.id;
@@ -68,6 +68,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
     });
     if (error) { alert('Erro ao criar tarefa a partir da solicitação: ' + error.message); return; }
     onDataChanged?.();
+    onTaskCreatedElsewhere?.();
   }
 
   async function handleSave() {
@@ -82,7 +83,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       activity_date,
       description: desc,
       status: type === 'reuniao' ? null : status,
-      image_url: type === 'reuniao' ? null : (imageUrl || null),
+      image_url: imageUrl || null,
     };
 
     let result;
@@ -151,22 +152,18 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
         <label>{ACTIVITY_LABELS[type].desc}</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} />
 
-        {type !== 'reuniao' && (
-          <>
-            <label>Anexo (imagem)</label>
-            {imageUrl ? (
-              <div className="attachment-preview">
-                <img src={imageUrl} alt="Anexo" />
-                <button type="button" className="secondary small" onClick={() => setImageUrl('')}>Remover imagem</button>
-              </div>
-            ) : (
-              <button type="button" className="secondary small" onClick={() => fileInputRef.current.click()} disabled={uploading}>
-                {uploading ? 'Enviando...' : '+ Adicionar imagem'}
-              </button>
-            )}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
-          </>
+        <label>Anexo (imagem)</label>
+        {imageUrl ? (
+          <div className="attachment-preview">
+            <img src={imageUrl} alt="Anexo" />
+            <button type="button" className="secondary small" onClick={() => setImageUrl('')}>Remover imagem</button>
+          </div>
+        ) : (
+          <button type="button" className="secondary small" onClick={() => fileInputRef.current.click()} disabled={uploading}>
+            {uploading ? 'Enviando...' : '+ Adicionar imagem'}
+          </button>
         )}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
 
         <div className="actions">
           <button className="secondary" onClick={onClose}>Cancelar</button>

@@ -4,6 +4,7 @@ export default function Sidebar({ projects, loading, pendingCounts, currentProje
   return (
     <aside className="sidebar">
       <h2>📁 Projetos</h2>
+      <button className="new-project-btn" onClick={onNewProject}>+ Novo Projeto</button>
       <div className="project-list">
         {loading ? (
           <Spinner />
@@ -25,7 +26,6 @@ export default function Sidebar({ projects, loading, pendingCounts, currentProje
           })
         )}
       </div>
-      <button className="new-project-btn" onClick={onNewProject}>+ Novo Projeto</button>
     </aside>
   );
 }

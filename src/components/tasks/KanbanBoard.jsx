@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { formatDate } from '../../utils/format';
 import VersionModal from './VersionModal';
+import ColumnSettingsModal from './ColumnSettingsModal';
 import Spinner from '../Spinner';
 import { useToast } from '../Toast';
 
-export default function KanbanBoard({ projectId, onDataChanged }) {
+export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
   const showToast = useToast();
   const [columns, setColumns] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -16,6 +17,7 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
   const [modalColumnId, setModalColumnId] = useState(null);
   const [modalVersion, setModalVersion] = useState(null);
   const [modalNextPosition, setModalNextPosition] = useState(0);
+  const [settingsColumn, setSettingsColumn] = useState(null);
 
   const load = useCallback(async () => {
     const [colsRes, versionsRes] = await Promise.all([
@@ -30,7 +32,7 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
     onDataChanged?.();
   }, [projectId, onDataChanged]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshTick]);
 
   const sortedColumns = [...columns].sort((a, b) => a.position - b.position);
 
@@ -45,15 +47,6 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
     const { error } = await supabase.from('kanban_columns').insert({ project_id: projectId, name, position });
     if (error) { alert('Erro ao criar coluna: ' + error.message); return; }
     showToast('Coluna criada');
-    load();
-  }
-
-  async function renameColumn(col) {
-    const name = prompt('Novo nome da coluna:', col.name);
-    if (!name || name === col.name) return;
-    const { error } = await supabase.from('kanban_columns').update({ name }).eq('id', col.id);
-    if (error) { alert('Erro ao renomear coluna: ' + error.message); return; }
-    showToast('Coluna renomeada');
     load();
   }
 
@@ -172,7 +165,8 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
                 <div className="kanban-column-header">
                   <div className="col-header-main">
                     <button className="icon-btn" disabled={idx === 0} onClick={() => moveColumn(col, 'left')} aria-label="Mover coluna para a esquerda">←</button>
-                    <span className="col-name" onClick={() => renameColumn(col)}>
+                    <span className="col-name" onClick={() => setSettingsColumn(col)} title="Clique para configurar esta coluna">
+                      {col.color && <span className="col-color-dot" style={{ background: col.color }} />}
                       {col.name} <span className="col-count">({items.length})</span>
                     </span>
                     <button className="icon-btn" disabled={idx === sortedColumns.length - 1} onClick={() => moveColumn(col, 'right')} aria-label="Mover coluna para a direita">→</button>
@@ -185,29 +179,32 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
                   onDragOver={e => e.preventDefault()}
                   onDrop={() => handleDropOnColumnBody(col.id)}
                 >
-                  {items.map(v => (
-                    <div
-                      key={v.id}
-                      className={
-                        'kanban-card' +
-                        (v.priority === 'urgente' ? ' priority-urgente' : '') +
-                        (draggedId === v.id ? ' dragging' : '') +
-                        (dragOverInfo?.cardId === v.id ? ' drag-over-' + dragOverInfo.position : '')
-                      }
-                      draggable
-                      onDragStart={() => setDraggedId(v.id)}
-                      onDragEnd={() => { setDraggedId(null); setDragOverInfo(null); }}
-                      onDragOver={e => handleCardDragOver(e, v)}
-                      onDrop={e => handleDropOnCard(e, v)}
-                      onClick={() => openEditCard(v)}
-                    >
-                      {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
-                      {v.image_url && <img className="kanban-card-thumb" src={v.image_url} alt="" />}
-                      <strong>{v.version_label}</strong>
-                      <small>{formatDate(v.change_date)} · {v.requester_name}</small>
-                      <p>{v.description || ''}</p>
-                    </div>
-                  ))}
+                  {items.map(v => {
+                    const borderColor = col.color || (v.priority === 'urgente' ? '#dc2626' : null);
+                    return (
+                      <div
+                        key={v.id}
+                        className={
+                          'kanban-card' +
+                          (draggedId === v.id ? ' dragging' : '') +
+                          (dragOverInfo?.cardId === v.id ? ' drag-over-' + dragOverInfo.position : '')
+                        }
+                        style={borderColor ? { borderLeft: '3px solid ' + borderColor, paddingLeft: '7px' } : undefined}
+                        draggable
+                        onDragStart={() => setDraggedId(v.id)}
+                        onDragEnd={() => { setDraggedId(null); setDragOverInfo(null); }}
+                        onDragOver={e => handleCardDragOver(e, v)}
+                        onDrop={e => handleDropOnCard(e, v)}
+                        onClick={() => openEditCard(v)}
+                      >
+                        {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
+                        {v.image_url && <img className="kanban-card-thumb" src={v.image_url} alt="" />}
+                        <strong>{v.version_label}</strong>
+                        <small>{formatDate(v.change_date)} · {v.requester_name}</small>
+                        <p>{v.description || ''}</p>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <button className="kanban-add-card" onClick={() => openNewCard(col.id)}>+ Novo Item</button>
@@ -225,6 +222,14 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
           nextPosition={modalNextPosition}
           onClose={() => setModalOpen(false)}
           onSaved={() => { setModalOpen(false); load(); }}
+        />
+      )}
+
+      {settingsColumn && (
+        <ColumnSettingsModal
+          column={settingsColumn}
+          onClose={() => setSettingsColumn(null)}
+          onSaved={() => { setSettingsColumn(null); load(); }}
         />
       )}
     </div>

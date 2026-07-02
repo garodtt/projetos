@@ -6,7 +6,7 @@
 .project-item-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .project-item:hover { background:#374151; }
 .project-item.active { background:#2563eb; }
-.new-project-btn { margin-top:12px; padding:10px; background:#2563eb; border:none; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; }
+.new-project-btn { margin:8px 0 16px; padding:10px; background:#2563eb; border:none; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; }
 .content { flex:1; padding:24px; overflow-y:auto; }
 .empty-state { color:#666; text-align:center; margin-top:40px; }
 .project-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; }
@@ -78,7 +78,7 @@ button.small { padding:6px 10px; font-size:13px; }
   .sidebar h2 { margin: 0; white-space: nowrap; }
   .project-list { display: flex; flex: 1; overflow-x: auto; gap: 6px; }
   .project-item { white-space: nowrap; margin-bottom: 0; }
-  .new-project-btn { margin-top: 0; white-space: nowrap; }
+  .new-project-btn { margin: 0; white-space: nowrap; }
   .content { padding: 16px; }
   .row { flex-direction: column; gap: 0; }
   .modal { width: 94vw; padding: 18px; }
@@ -146,3 +146,8 @@ button.small { padding:6px 10px; font-size:13px; }
 .hidden { display: none; }
 
 .activity-card-thumb { width:100%; max-height:160px; object-fit:cover; border-radius:6px; margin:8px 0; display:block; }
+
+.col-color-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+.checkbox-row { display:flex; align-items:center; gap:8px; font-weight:normal; font-size:14px; margin-bottom:12px; }
+.checkbox-row input[type="checkbox"] { width:auto; margin:0; }
+.color-input { width:60px; height:36px; padding:2px; margin-bottom:12px; cursor:pointer; border:1px solid #ccc; border-radius:6px; }
