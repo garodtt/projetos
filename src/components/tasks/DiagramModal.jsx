@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { DRAWIO_EMBED_URL, BLANK_DIAGRAM_XML } from '../../constants';
 import { useToast } from '../Toast';
 
-export default function DiagramModal({ projectId, diagram, onClose, onSaved }) {
+export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40, onClose, onSaved }) {
   const showToast = useToast();
   const [mode, setMode] = useState(diagram ? 'view' : 'edit');
   const [title, setTitle] = useState(diagram?.title || '');
@@ -46,9 +46,11 @@ export default function DiagramModal({ projectId, diagram, onClose, onSaved }) {
     let result;
     if (currentId) {
       payload.updated_at = new Date().toISOString();
-      result = await supabase.from('diagrams').update(payload).eq('id', currentId).select().single();
+      result = await supabase.from('panel_items').update(payload).eq('id', currentId).select().single();
     } else {
-      result = await supabase.from('diagrams').insert({ ...payload, project_id: projectId }).select().single();
+      result = await supabase.from('panel_items').insert({
+        ...payload, project_id: projectId, type: 'diagrama', pos_x: posX, pos_y: posY,
+      }).select().single();
     }
     if (result.error) { alert('Erro ao salvar diagrama: ' + result.error.message); return; }
 
@@ -68,7 +70,7 @@ export default function DiagramModal({ projectId, diagram, onClose, onSaved }) {
   async function handleDelete() {
     if (!currentId) return;
     if (!confirm('Excluir este diagrama?')) return;
-    const { error } = await supabase.from('diagrams').delete().eq('id', currentId);
+    const { error } = await supabase.from('panel_items').delete().eq('id', currentId);
     if (error) { alert('Erro ao excluir diagrama: ' + error.message); return; }
     showToast('Diagrama excluído');
     onSaved();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 
@@ -10,6 +10,23 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   const [date, setDate] = useState(version?.change_date || '');
   const [description, setDescription] = useState(version?.description || '');
   const [priority, setPriority] = useState(version?.priority || 'normal');
+  const [imageUrl, setImageUrl] = useState(version?.image_url || '');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  async function handleFileSelected(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    const ext = file.name.split('.').pop();
+    const path = `tasks/${projectId}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file);
+    setUploading(false);
+    if (uploadError) { alert('Erro ao enviar imagem: ' + uploadError.message); return; }
+    const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(path);
+    setImageUrl(urlData.publicUrl);
+  }
 
   async function handleSave() {
     const version_label = label.trim();
@@ -18,7 +35,7 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
     const desc = description.trim();
     if (!version_label || !requester_name) { alert('Preencha a versão e quem solicitou.'); return; }
 
-    const payload = { version_label, requester_name, change_date, description: desc, priority };
+    const payload = { version_label, requester_name, change_date, description: desc, priority, image_url: imageUrl || null };
     let result;
     if (isEditing) {
       result = await supabase.from('versions').update(payload).eq('id', version.id);
@@ -62,6 +79,20 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
         </div>
         <label>Descrição</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="O que foi alterado..." />
+
+        <label>Anexo (imagem)</label>
+        {imageUrl ? (
+          <div className="attachment-preview">
+            <img src={imageUrl} alt="Anexo" />
+            <button type="button" className="secondary small" onClick={() => setImageUrl('')}>Remover imagem</button>
+          </div>
+        ) : (
+          <button type="button" className="secondary small" onClick={() => fileInputRef.current.click()} disabled={uploading}>
+            {uploading ? 'Enviando...' : '+ Adicionar imagem'}
+          </button>
+        )}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+
         <div className="actions">
           <button className="secondary" onClick={onClose}>Cancelar</button>
           {isEditing && <button className="danger push-left" onClick={handleDelete}>Excluir</button>}

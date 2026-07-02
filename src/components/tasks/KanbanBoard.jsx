@@ -202,6 +202,7 @@ export default function KanbanBoard({ projectId, onDataChanged }) {
                       onClick={() => openEditCard(v)}
                     >
                       {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
+                      {v.image_url && <img className="kanban-card-thumb" src={v.image_url} alt="" />}
                       <strong>{v.version_label}</strong>
                       <small>{formatDate(v.change_date)} · {v.requester_name}</small>
                       <p>{v.description || ''}</p>

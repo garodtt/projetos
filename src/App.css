@@ -110,3 +110,34 @@ button.small { padding:6px 10px; font-size:13px; }
 
 .kanban-card.priority-urgente { border-left:3px solid #dc2626; padding-left:7px; }
 .priority-tag { display:inline-block; background:#fee2e2; color:#991b1b; font-size:11px; font-weight:bold; padding:1px 6px; border-radius:8px; margin-bottom:4px; }
+
+.attachment-preview img { max-width:100%; max-height:160px; display:block; margin-bottom:6px; border-radius:6px; object-fit:cover; }
+.kanban-card-thumb { width:100%; max-height:120px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block; }
+
+.create-menu-wrap { position:relative; }
+.menu-backdrop { position:fixed; inset:0; z-index:10; }
+.create-menu { position:absolute; top:110%; right:0; background:#fff; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; flex-direction:column; min-width:150px; z-index:20; overflow:hidden; }
+.create-menu button { text-align:left; padding:10px 14px; border:none; background:#fff; cursor:pointer; font-size:14px; }
+.create-menu button:hover { background:#f3f4f6; }
+
+.panel-canvas-wrap { border:1px solid #ddd; border-radius:8px; background:#f8f9fb; overflow:auto; max-height:70vh; margin-bottom:8px; }
+.panel-canvas { position:relative; width:2400px; height:1600px; background-image:radial-gradient(circle, #dfe2e8 1px, transparent 1px); background-size:24px 24px; }
+.panel-empty { position:absolute; top:20px; left:20px; margin:0; }
+
+.panel-item { position:absolute; width:300px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.15); background:#fff; overflow:hidden; }
+.panel-item-handle { display:flex; align-items:center; justify-content:space-between; padding:4px 8px; background:rgba(0,0,0,0.04); cursor:grab; touch-action:none; user-select:none; }
+.panel-item-handle:active { cursor:grabbing; }
+.drag-dots { color:#9ca3af; font-size:14px; }
+.panel-item-body { padding:10px; cursor:pointer; }
+.panel-item-body.no-pad { padding:0; cursor:default; }
+.panel-diagram-thumb { height:120px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-top:6px; }
+.panel-diagram-thumb img { max-width:100%; max-height:100%; }
+.panel-note-text { width:100%; min-height:140px; border:none; background:transparent; resize:vertical; padding:10px; font-family:inherit; font-size:14px; box-sizing:border-box; }
+.panel-note-text:focus { outline:none; }
+.panel-image { width:100%; display:block; }
+
+@media (max-width: 768px) {
+  .panel-canvas-wrap { max-height:60vh; }
+  .panel-item { width:220px; }
+}
+.hidden { display: none; }
