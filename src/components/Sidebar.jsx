@@ -3,7 +3,7 @@ import Spinner from './Spinner';
 export default function Sidebar({ projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject }) {
   return (
     <aside className="sidebar">
-      <h2>📁 Projetos</h2>
+      <h2>Projetos</h2>
       <button className="new-project-btn" onClick={onNewProject}>+ Novo Projeto</button>
       <div className="project-list">
         {loading ? (
