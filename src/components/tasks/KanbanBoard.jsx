@@ -1,10 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { formatDate } from '../../utils/format';
+import { isImageFile, fileIcon } from '../../utils/files';
 import VersionModal from './VersionModal';
 import ColumnSettingsModal from './ColumnSettingsModal';
 import Spinner from '../Spinner';
 import { useToast } from '../Toast';
+
+function renderAttachmentsPreview(attachments) {
+  if (!attachments || attachments.length === 0) return null;
+  if (attachments.length === 1) {
+    const att = attachments[0];
+    return isImageFile(att.file_name) ? (
+      <img className="kanban-card-thumb" src={att.file_url} alt="" />
+    ) : (
+      <a
+        className="attachment-chip"
+        href={att.file_url}
+        target="_blank"
+        rel="noreferrer"
+        onClick={e => e.stopPropagation()}
+      >
+        {fileIcon(att.file_name)} {att.file_name}
+      </a>
+    );
+  }
+  return <span className="attachment-chip attachment-chip-count">📎 {attachments.length} anexos</span>;
+}
 
 export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
   const showToast = useToast();
@@ -22,7 +44,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
   const load = useCallback(async () => {
     const [colsRes, versionsRes] = await Promise.all([
       supabase.from('kanban_columns').select('*').eq('project_id', projectId).order('position', { ascending: true }),
-      supabase.from('versions').select('*').eq('project_id', projectId).order('position', { ascending: true }),
+      supabase.from('versions').select('*, attachments!version_id(*)').eq('project_id', projectId).order('position', { ascending: true }),
     ]);
     if (colsRes.error) { alert('Erro ao carregar colunas: ' + colsRes.error.message); setLoading(false); return; }
     if (versionsRes.error) { alert('Erro ao carregar tarefas: ' + versionsRes.error.message); setLoading(false); return; }
@@ -198,7 +220,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
                         onClick={() => openEditCard(v)}
                       >
                         {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
-                        {v.image_url && <img className="kanban-card-thumb" src={v.image_url} alt="" />}
+                        {renderAttachmentsPreview(v.attachments)}
                         <strong>{v.version_label}</strong>
                         <small>{formatDate(v.change_date)} · {v.requester_name}</small>
                         <p>{v.description || ''}</p>

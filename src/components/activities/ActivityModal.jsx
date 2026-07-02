@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME } from '../../constants';
 import { useToast } from '../Toast';
+import AttachmentsField from '../AttachmentsField';
 
 export default function ActivityModal({ projectId, activity, onClose, onSaved, onDataChanged, onTaskCreatedElsewhere }) {
   const showToast = useToast();
@@ -11,22 +12,40 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
   const [date, setDate] = useState(activity?.activity_date || '');
   const [description, setDescription] = useState(activity?.description || '');
   const [status, setStatus] = useState(activity?.status || 'pendente');
-  const [imageUrl, setImageUrl] = useState(activity?.image_url || '');
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
+  const [attachments, setAttachments] = useState(activity?.attachments || []);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
-  async function handleFileSelected(e) {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    setUploading(true);
+  async function handleAddAttachment(file) {
+    setUploadingAttachment(true);
     const ext = file.name.split('.').pop();
     const path = `activities/${projectId}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file);
-    setUploading(false);
-    if (uploadError) { alert('Erro ao enviar imagem: ' + uploadError.message); return; }
+    if (uploadError) { setUploadingAttachment(false); alert('Erro ao enviar arquivo: ' + uploadError.message); return; }
     const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(path);
-    setImageUrl(urlData.publicUrl);
+
+    if (isEditing) {
+      const { data, error } = await supabase.from('attachments')
+        .insert({ project_id: projectId, activity_id: activity.id, file_url: urlData.publicUrl, file_name: file.name })
+        .select().single();
+      setUploadingAttachment(false);
+      if (error) { alert('Erro ao salvar anexo: ' + error.message); return; }
+      setAttachments(prev => [...prev, data]);
+    } else {
+      setUploadingAttachment(false);
+      setAttachments(prev => [...prev, {
+        id: 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+        file_url: urlData.publicUrl,
+        file_name: file.name,
+      }]);
+    }
+  }
+
+  async function handleRemoveAttachment(att) {
+    if (isEditing) {
+      const { error } = await supabase.from('attachments').delete().eq('id', att.id);
+      if (error) { alert('Erro ao remover anexo: ' + error.message); return; }
+    }
+    setAttachments(prev => prev.filter(a => a.id !== att.id));
   }
 
   async function getOrCreateUnassignedColumnId() {
@@ -46,7 +65,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
     return data.id;
   }
 
-  async function createTaskFromActivity(payloadActivity) {
+  async function createTaskFromActivity(payloadActivity, attachmentsList) {
     const columnId = await getOrCreateUnassignedColumnId();
     if (!columnId) return;
 
@@ -55,7 +74,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       .order('position', { ascending: false }).limit(1);
     const nextPosition = existingCards && existingCards.length ? (existingCards[0].position ?? -1) + 1 : 0;
 
-    const { error } = await supabase.from('versions').insert({
+    const { data: newVersion, error } = await supabase.from('versions').insert({
       project_id: projectId,
       column_id: columnId,
       version_label: ACTIVITY_TAG_LABEL[payloadActivity.type],
@@ -64,9 +83,15 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       description: payloadActivity.description,
       position: nextPosition,
       priority: payloadActivity.type === 'correcao' ? 'urgente' : 'normal',
-      image_url: payloadActivity.image_url || null,
-    });
+    }).select().single();
     if (error) { alert('Erro ao criar tarefa a partir da solicitação: ' + error.message); return; }
+
+    if (attachmentsList && attachmentsList.length) {
+      const rows = attachmentsList.map(a => ({ project_id: projectId, version_id: newVersion.id, file_url: a.file_url, file_name: a.file_name }));
+      const { error: attError } = await supabase.from('attachments').insert(rows);
+      if (attError) alert('Tarefa criada, mas houve um erro ao copiar os anexos: ' + attError.message);
+    }
+
     onDataChanged?.();
     onTaskCreatedElsewhere?.();
   }
@@ -83,20 +108,25 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       activity_date,
       description: desc,
       status: type === 'reuniao' ? null : status,
-      image_url: imageUrl || null,
     };
 
     let result;
     if (isEditing) {
       result = await supabase.from('activities').update(payload).eq('id', activity.id);
     } else {
-      result = await supabase.from('activities').insert({ ...payload, project_id: projectId });
+      result = await supabase.from('activities').insert({ ...payload, project_id: projectId }).select().single();
     }
     if (result.error) { alert('Erro ao salvar atividade: ' + result.error.message); return; }
 
+    if (!isEditing && attachments.length) {
+      const rows = attachments.map(a => ({ project_id: projectId, activity_id: result.data.id, file_url: a.file_url, file_name: a.file_name }));
+      const { error: attError } = await supabase.from('attachments').insert(rows);
+      if (attError) alert('Atividade salva, mas houve um erro ao salvar os anexos: ' + attError.message);
+    }
+
     const shouldGoToTasks = !isEditing && type !== 'reuniao';
     if (shouldGoToTasks) {
-      await createTaskFromActivity(payload);
+      await createTaskFromActivity(payload, attachments);
       showToast('Atividade salva e tarefa criada em "Não atribuídos"');
     } else {
       showToast(isEditing ? 'Atividade atualizada' : 'Atividade salva');
@@ -152,18 +182,12 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
         <label>{ACTIVITY_LABELS[type].desc}</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} />
 
-        <label>Anexo (imagem)</label>
-        {imageUrl ? (
-          <div className="attachment-preview">
-            <img src={imageUrl} alt="Anexo" />
-            <button type="button" className="secondary small" onClick={() => setImageUrl('')}>Remover imagem</button>
-          </div>
-        ) : (
-          <button type="button" className="secondary small" onClick={() => fileInputRef.current.click()} disabled={uploading}>
-            {uploading ? 'Enviando...' : '+ Adicionar imagem'}
-          </button>
-        )}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+        <AttachmentsField
+          attachments={attachments}
+          uploading={uploadingAttachment}
+          onAdd={handleAddAttachment}
+          onRemove={handleRemoveAttachment}
+        />
 
         <div className="actions">
           <button className="secondary" onClick={onClose}>Cancelar</button>

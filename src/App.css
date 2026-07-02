@@ -151,3 +151,24 @@ button.small { padding:6px 10px; font-size:13px; }
 .checkbox-row { display:flex; align-items:center; gap:8px; font-weight:normal; font-size:14px; margin-bottom:12px; }
 .checkbox-row input[type="checkbox"] { width:auto; margin:0; }
 .color-input { width:60px; height:36px; padding:2px; margin-bottom:12px; cursor:pointer; border:1px solid #ccc; border-radius:6px; }
+
+.attachment-file-card { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid #ddd; border-radius:6px; margin-bottom:10px; background:#f9fafb; }
+.attachment-file-icon { font-size:20px; flex-shrink:0; }
+.attachment-file-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#2563eb; text-decoration:none; font-size:13px; }
+.attachment-file-name:hover { text-decoration:underline; }
+
+.attachment-chip { display:block; width:fit-content; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:#2563eb; text-decoration:none; background:#eff6ff; padding:3px 8px; border-radius:12px; margin:6px 0; }
+.attachment-chip:hover { text-decoration:underline; }
+
+.panel-file-body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-decoration:none; color:#374151; padding:10px; text-align:center; box-sizing:border-box; background:#f8f9fa; }
+.panel-file-icon { font-size:32px; }
+.panel-file-name { font-size:12px; word-break:break-word; max-width:100%; }
+
+.attachments-field { margin-bottom: 10px; }
+.attachments-list { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+.attachment-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb; }
+.attachment-row-thumb { width:32px; height:32px; object-fit:cover; border-radius:4px; flex-shrink:0; }
+.attachment-row-icon { font-size:18px; flex-shrink:0; width:32px; text-align:center; }
+.attachment-row-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:#2563eb; text-decoration:none; }
+.attachment-row-name:hover { text-decoration:underline; }
+.attachment-chip-count { background:#eef2ff; color:#4338ca; }

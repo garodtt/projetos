@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { isImageFile, fileIcon, ATTACHMENT_ACCEPT } from '../../utils/files';
 import { useToast } from '../Toast';
 import Spinner from '../Spinner';
 import DiagramModal from './DiagramModal';
@@ -59,12 +60,12 @@ export default function PanelSection({ projectId }) {
     load();
   }
 
-  function triggerImagePicker() {
+  function triggerFilePicker() {
     setMenuOpen(false);
     fileInputRef.current?.click();
   }
 
-  async function handleImageFileSelected(e) {
+  async function handleFileSelected(e) {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
@@ -72,14 +73,14 @@ export default function PanelSection({ projectId }) {
     const ext = file.name.split('.').pop();
     const path = `panel/${projectId}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file);
-    if (uploadError) { alert('Erro ao enviar imagem: ' + uploadError.message); return; }
+    if (uploadError) { alert('Erro ao enviar arquivo: ' + uploadError.message); return; }
     const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(path);
     const { error } = await supabase.from('panel_items').insert({
-      project_id: projectId, type: 'imagem', image_url: urlData.publicUrl,
+      project_id: projectId, type: 'imagem', attachment_url: urlData.publicUrl, attachment_name: file.name,
       pos_x: pos.x, pos_y: pos.y, width: 280, height: 200, z_index: nextZIndex(),
     });
     if (error) { alert('Erro ao criar item: ' + error.message); return; }
-    showToast('Imagem adicionada');
+    showToast('Arquivo adicionado');
     load();
   }
 
@@ -191,12 +192,12 @@ export default function PanelSection({ projectId }) {
               <div className="create-menu">
                 <button onClick={handleCreateDiagram}>Diagrama</button>
                 <button onClick={handleCreateNote}>Nota</button>
-                <button onClick={triggerImagePicker}>Imagem</button>
+                <button onClick={triggerFilePicker}>Arquivo</button>
               </div>
             </>
           )}
         </div>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFileSelected} />
+        <input ref={fileInputRef} type="file" accept={ATTACHMENT_ACCEPT} className="hidden" onChange={handleFileSelected} />
       </div>
 
       {loading ? (
@@ -267,9 +268,16 @@ export default function PanelSection({ projectId }) {
                   )}
 
                   {item.type === 'imagem' && (
-                    <div className="panel-item-body no-pad">
-                      <img className="panel-image" src={item.image_url} alt="" />
-                    </div>
+                    isImageFile(item.attachment_name) ? (
+                      <div className="panel-item-body no-pad">
+                        <img className="panel-image" src={item.attachment_url} alt="" />
+                      </div>
+                    ) : (
+                      <a className="panel-file-body" href={item.attachment_url} target="_blank" rel="noreferrer">
+                        <span className="panel-file-icon">{fileIcon(item.attachment_name)}</span>
+                        <span className="panel-file-name">{item.attachment_name || 'Arquivo'}</span>
+                      </a>
+                    )
                   )}
 
                   {resizable && (

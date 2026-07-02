@@ -2,8 +2,30 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_TAG_LABEL } from '../../constants';
 import { formatDate } from '../../utils/format';
+import { isImageFile, fileIcon } from '../../utils/files';
 import ActivityModal from './ActivityModal';
 import Spinner from '../Spinner';
+
+function renderAttachmentsPreview(attachments) {
+  if (!attachments || attachments.length === 0) return null;
+  if (attachments.length === 1) {
+    const att = attachments[0];
+    return isImageFile(att.file_name) ? (
+      <img className="activity-card-thumb" src={att.file_url} alt="" />
+    ) : (
+      <a
+        className="attachment-chip"
+        href={att.file_url}
+        target="_blank"
+        rel="noreferrer"
+        onClick={e => e.stopPropagation()}
+      >
+        {fileIcon(att.file_name)} {att.file_name}
+      </a>
+    );
+  }
+  return <span className="attachment-chip attachment-chip-count">📎 {attachments.length} anexos</span>;
+}
 
 export default function ActivitiesTab({ projectId, onActivityConvertedToTask, onDataChanged, onTaskCreatedElsewhere }) {
   const [activities, setActivities] = useState([]);
@@ -14,7 +36,10 @@ export default function ActivitiesTab({ projectId, onActivityConvertedToTask, on
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
-      .from('activities').select('*').eq('project_id', projectId).order('activity_date', { ascending: false });
+      .from('activities')
+      .select('*, attachments!activity_id(*)')
+      .eq('project_id', projectId)
+      .order('activity_date', { ascending: false });
     if (error) { alert('Erro ao carregar atividades: ' + error.message); setLoading(false); return; }
     setActivities(data);
     setLoading(false);
@@ -55,7 +80,7 @@ export default function ActivitiesTab({ projectId, onActivityConvertedToTask, on
             <div key={a.id} className="card" onClick={() => openEdit(a)}>
               <span className={'tag ' + a.type}>{ACTIVITY_TAG_LABEL[a.type]}</span>
               <small> · {a.person_name} · {formatDate(a.activity_date)}{a.status ? ' · status: ' + a.status : ''}</small>
-              {a.image_url && <img className="activity-card-thumb" src={a.image_url} alt="" />}
+              {renderAttachmentsPreview(a.attachments)}
               <p>{a.description}</p>
             </div>
           ))}
