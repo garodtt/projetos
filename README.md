@@ -18,6 +18,8 @@ Sistema web para organizar projetos de desenvolvimento (freelancer ou equipe peq
 - CSS puro (sem framework de estilos)
 
 ## Estrutura de pastas
+
+```
 gestao-projetos/
 ├── index.html
 ├── package.json
@@ -29,32 +31,33 @@ gestao-projetos/
 ├── supabase/
 │   └── schema.sql
 └── src/
-  ├── main.jsx
-├── App.jsx
-├── App.css
-├── index.css
-├── constants.js
-├── lib/
-│   └── supabaseClient.js
-├── utils/
-│   ├── format.js
-│   └── files.js
-└── components/
-├── Sidebar.jsx
+    ├── main.jsx
+    ├── App.jsx
+    ├── App.css
+    ├── index.css
+    ├── constants.js
+    ├── lib/
+    │   └── supabaseClient.js
+    ├── utils/
+    │   ├── format.js
+    │   └── files.js
+    └── components/
+        ├── Sidebar.jsx
         ├── ProjectModal.jsx
-├── Spinner.jsx
-├── Toast.jsx
-      ├── AttachmentsField.jsx
-├── activities/
-│   ├── ActivitiesTab.jsx
-│   └── ActivityModal.jsx
-└── tasks/
-         ├── TasksTab.jsx
-├── KanbanBoard.jsx
-├── ColumnSettingsModal.jsx
-├── VersionModal.jsx
-├── PanelSection.jsx
-└── DiagramModal.jsx
+        ├── Spinner.jsx
+        ├── Toast.jsx
+        ├── AttachmentsField.jsx
+        ├── activities/
+        │   ├── ActivitiesTab.jsx
+        │   └── ActivityModal.jsx
+        └── tasks/
+            ├── TasksTab.jsx
+            ├── KanbanBoard.jsx
+            ├── ColumnSettingsModal.jsx
+            ├── VersionModal.jsx
+            ├── PanelSection.jsx
+            └── DiagramModal.jsx
+```
 
 ## Instalação (ambiente novo, do zero)
 
