@@ -16,6 +16,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('activities');
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState('new');
+  const [initialFolderId, setInitialFolderId] = useState(null);
   const [taskRefreshTick, setTaskRefreshTick] = useState(0);
 
   const bumpTaskRefresh = useCallback(() => setTaskRefreshTick(t => t + 1), []);
@@ -78,8 +79,9 @@ export default function App() {
     setProjectLoading(false);
   }
 
-  function openNewProjectModal() {
+  function openNewProjectModal(folderId = null) {
     setProjectModalMode('new');
+    setInitialFolderId(folderId || null);
     setProjectModalOpen(true);
   }
 
@@ -94,6 +96,14 @@ export default function App() {
     if (isNew) await createDefaultColumns(savedProject.id);
     setCurrentProjectId(null);
     selectProject(savedProject.id);
+  }
+
+  async function handleProjectDeleted() {
+    setProjectModalOpen(false);
+    setCurrentProjectId(null);
+    setCurrentProject(null);
+    await loadProjects();
+    await loadPendingCounts();
   }
 
   return (
@@ -147,8 +157,10 @@ export default function App() {
         <ProjectModal
           mode={projectModalMode}
           project={projectModalMode === 'edit' ? currentProject : null}
+          initialFolderId={initialFolderId}
           onClose={() => setProjectModalOpen(false)}
           onSaved={handleProjectSaved}
+          onDeleted={handleProjectDeleted}
         />
       )}
     </div>
