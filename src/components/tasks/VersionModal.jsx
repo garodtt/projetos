@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 import AttachmentsField from '../AttachmentsField';
 import { COMPLEXITY_OPTIONS } from '../../constants';
+import { registerVersionColumnArrival } from '../../utils/versioning';
 
-export default function VersionModal({ projectId, columnId, version, nextPosition, onClose, onSaved }) {
+export default function VersionModal({ projectId, columnId, version, nextPosition, isVersionColumn, onClose, onSaved }) {
   const showToast = useToast();
   const isEditing = Boolean(version);
   const [title, setTitle] = useState(version?.title || '');
@@ -69,6 +70,10 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
       const rows = attachments.map(a => ({ project_id: projectId, version_id: result.data.id, file_url: a.file_url, file_name: a.file_name }));
       const { error: attError } = await supabase.from('attachments').insert(rows);
       if (attError) alert('Item salvo, mas houve um erro ao salvar os anexos: ' + attError.message);
+    }
+
+    if (!isEditing && isVersionColumn && result.data) {
+      await registerVersionColumnArrival(projectId, complexity, result.data.id, result.data.title);
     }
 
     showToast(isEditing ? 'Item atualizado' : 'Item criado');

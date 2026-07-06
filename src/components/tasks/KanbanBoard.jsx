@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { formatDate } from '../../utils/format';
 import { isImageFile, fileIcon } from '../../utils/files';
 import { COMPLEXITY_LABEL } from '../../constants';
+import { registerVersionColumnArrival } from '../../utils/versioning';
 import VersionModal from './VersionModal';
 import ColumnSettingsModal from './ColumnSettingsModal';
 import Spinner from '../Spinner';
@@ -29,7 +30,7 @@ function renderAttachmentsPreview(attachments) {
   return <span className="attachment-chip attachment-chip-count">📎 {attachments.length} anexos</span>;
 }
 
-export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
+export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onVersionChanged }) {
   const showToast = useToast();
   const [columns, setColumns] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -38,6 +39,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
   const [dragOverInfo, setDragOverInfo] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalColumnId, setModalColumnId] = useState(null);
+  const [modalColumnIsVersionColumn, setModalColumnIsVersionColumn] = useState(false);
   const [modalVersion, setModalVersion] = useState(null);
   const [modalNextPosition, setModalNextPosition] = useState(0);
   const [settingsColumn, setSettingsColumn] = useState(null);
@@ -127,6 +129,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
   async function reorderCard(draggedCardId, targetColumnId, targetCardId, position) {
     const draggedCard = versions.find(v => v.id === draggedCardId);
     if (!draggedCard) return;
+    const previousColumnId = draggedCard.column_id;
 
     let columnItems = cardsInColumn(targetColumnId).filter(v => v.id !== draggedCardId);
 
@@ -144,19 +147,31 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
     ));
     const failed = results.find(r => r.error);
     if (failed) { alert('Erro ao mover item: ' + failed.error.message); return; }
+
+    if (previousColumnId !== targetColumnId) {
+      const targetColumn = columns.find(c => c.id === targetColumnId);
+      if (targetColumn?.is_version_column && draggedCard.complexity) {
+        await registerVersionColumnArrival(projectId, draggedCard.complexity, draggedCard.id, draggedCard.title);
+      }
+    }
+
     load();
+    onVersionChanged?.();
   }
 
   function openNewCard(columnId) {
     const items = cardsInColumn(columnId);
     const nextPosition = items.length ? Math.max(...items.map(v => v.position ?? 0)) + 1 : 0;
+    const column = columns.find(c => c.id === columnId);
     setModalColumnId(columnId);
+    setModalColumnIsVersionColumn(Boolean(column?.is_version_column));
     setModalVersion(null);
     setModalNextPosition(nextPosition);
     setModalOpen(true);
   }
   function openEditCard(version) {
     setModalColumnId(version.column_id);
+    setModalColumnIsVersionColumn(false);
     setModalVersion(version);
     setModalOpen(true);
   }
@@ -190,6 +205,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
                     <button className="icon-btn" disabled={idx === 0} onClick={() => moveColumn(col, 'left')} aria-label="Mover coluna para a esquerda">←</button>
                     <span className="col-name" onClick={() => setSettingsColumn(col)} title="Clique para configurar esta coluna">
                       {col.color && <span className="col-color-dot" style={{ background: col.color }} />}
+                      {col.is_version_column && <span className="version-column-badge" title="Quadro de versão">🔢</span>}
                       {col.name} <span className="col-count">({items.length})</span>
                     </span>
                     <button className="icon-btn" disabled={idx === sortedColumns.length - 1} onClick={() => moveColumn(col, 'right')} aria-label="Mover coluna para a direita">→</button>
@@ -244,8 +260,9 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
           columnId={modalColumnId}
           version={modalVersion}
           nextPosition={modalNextPosition}
+          isVersionColumn={modalColumnIsVersionColumn}
           onClose={() => setModalOpen(false)}
-          onSaved={() => { setModalOpen(false); load(); }}
+          onSaved={() => { setModalOpen(false); load(); onVersionChanged?.(); }}
         />
       )}
 

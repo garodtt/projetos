@@ -8,6 +8,7 @@ export default function ColumnSettingsModal({ column, onClose, onSaved }) {
   const showToast = useToast();
   const [name, setName] = useState(column.name);
   const [isIndicator, setIsIndicator] = useState(column.is_indicator || false);
+  const [isVersionColumn, setIsVersionColumn] = useState(column.is_version_column || false);
   const [useCustomColor, setUseCustomColor] = useState(Boolean(column.color));
   const [color, setColor] = useState(column.color || DEFAULT_COLOR);
 
@@ -18,10 +19,21 @@ export default function ColumnSettingsModal({ column, onClose, onSaved }) {
     const payload = {
       name: trimmedName,
       is_indicator: isIndicator,
+      is_version_column: isVersionColumn,
       color: useCustomColor ? color : null,
     };
     const { error } = await supabase.from('kanban_columns').update(payload).eq('id', column.id);
     if (error) { alert('Erro ao salvar configurações da coluna: ' + error.message); return; }
+
+    if (isVersionColumn) {
+      const { error: clearError } = await supabase
+        .from('kanban_columns')
+        .update({ is_version_column: false })
+        .eq('project_id', column.project_id)
+        .neq('id', column.id);
+      if (clearError) console.error(clearError);
+    }
+
     showToast('Coluna atualizada');
     onSaved();
   }
@@ -37,6 +49,14 @@ export default function ColumnSettingsModal({ column, onClose, onSaved }) {
           <input type="checkbox" checked={isIndicator} onChange={e => setIsIndicator(e.target.checked)} />
           Mostrar indicador na barra lateral quando houver itens aqui
         </label>
+
+        <label className="checkbox-row">
+          <input type="checkbox" checked={isVersionColumn} onChange={e => setIsVersionColumn(e.target.checked)} />
+          Marcar como quadro de versão (itens que caírem aqui contam pro versionamento)
+        </label>
+        {isVersionColumn && (
+          <p className="version-column-note">Só uma coluna pode ser o quadro de versão — marcar esta desmarca qualquer outra.</p>
+        )}
 
         <label className="checkbox-row">
           <input type="checkbox" checked={useCustomColor} onChange={e => setUseCustomColor(e.target.checked)} />

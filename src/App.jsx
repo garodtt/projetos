@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
+import ProjectVersionModal from './components/ProjectVersionModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
@@ -20,6 +21,7 @@ export default function App() {
   const [projectModalMode, setProjectModalMode] = useState('new');
   const [initialFolderId, setInitialFolderId] = useState(null);
   const [taskRefreshTick, setTaskRefreshTick] = useState(0);
+  const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const [mainView, setMainView] = useState('project'); // 'project' | 'combinedSchedule'
   const [combinedScope, setCombinedScope] = useState(null); // { type: 'global' } | { type: 'folder', folderId, folderName }
@@ -60,6 +62,12 @@ export default function App() {
     loadProjects();
     loadPendingCounts();
   }, [loadProjects, loadPendingCounts]);
+
+  async function refreshCurrentProject() {
+    if (!currentProjectId) return;
+    const { data, error } = await supabase.from('projects').select('*').eq('id', currentProjectId).single();
+    if (!error && data) setCurrentProject(data);
+  }
 
   async function createDefaultColumns(projectId) {
     const defaults = [
@@ -159,9 +167,19 @@ export default function App() {
 
         {mainView === 'project' && currentProjectId && !projectLoading && currentProject && (
           <>
-            <div className="project-header">
-              <h1>{currentProject.name}</h1>
-              <button className="secondary" onClick={openEditProjectModal}>📄 Resumo</button>
+           <div className="project-header-block">
+              <div className="project-header">
+                <h1>{currentProject.name}</h1>
+                <button className="secondary" onClick={openEditProjectModal}>📄 Resumo</button>
+              </div>
+              <div className="project-header-secondary-row">
+                <button
+                  className="secondary version-badge-btn"
+                  onClick={() => setVersionModalOpen(true)}
+                >
+                  v{currentProject.version_major}.{currentProject.version_minor}.{currentProject.version_patch}
+                </button>
+              </div>
             </div>
 
             <div className="tabs">
@@ -180,7 +198,12 @@ export default function App() {
               />
             </div>
             <div className={'panel' + (activeTab === 'kanban' ? ' active' : '')}>
-              <TasksTab projectId={currentProjectId} onDataChanged={loadPendingCounts} refreshTick={taskRefreshTick} />
+              <TasksTab
+                projectId={currentProjectId}
+                onDataChanged={loadPendingCounts}
+                refreshTick={taskRefreshTick}
+                onVersionChanged={refreshCurrentProject}
+              />
             </div>
             <div className={'panel' + (activeTab === 'schedule' ? ' active' : '')}>
               <ScheduleTab projectId={currentProjectId} />
@@ -197,6 +220,13 @@ export default function App() {
           onClose={() => setProjectModalOpen(false)}
           onSaved={handleProjectSaved}
           onDeleted={handleProjectDeleted}
+        />
+      )}
+
+      {versionModalOpen && currentProjectId && (
+        <ProjectVersionModal
+          projectId={currentProjectId}
+          onClose={() => { setVersionModalOpen(false); refreshCurrentProject(); }}
         />
       )}
     </div>
