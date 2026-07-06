@@ -298,3 +298,21 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .gantt-header-row { position: absolute; left: 0; width: 100%; }
 .gantt-header-cell-top { font-weight: 600; color: #374151; background: #eaecf0; }
 
+.rte-wrapper { display: flex; flex-direction: column; height: 100%; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; }
+.rte-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+.rte-btn { background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; padding: 3px 7px; font-size: 12px; cursor: pointer; line-height: 1.2; min-width: 26px; }
+.rte-btn:hover { background: #f3f4f6; }
+.rte-divider { width: 1px; background: #e5e7eb; margin: 2px 2px; }
+.rte-font-select { font-size: 12px; padding: 3px 4px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; max-width: 90px; }
+.rte-editor { flex: 1; overflow-y: auto; padding: 8px; font-size: 13px; line-height: 1.4; outline: none; }
+.rte-editor:empty::before { content: attr(data-placeholder); color: #9ca3af; }
+.rte-editor ul, .rte-editor ol { margin: 4px 0; padding-left: 20px; }
+.rte-checklist-item { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0; }
+.rte-checklist-item input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+.rte-checklist-item input[type="checkbox"]:checked + span { text-decoration: line-through; color: #9ca3af; }
+
+.panel-note-rte { flex: 1; display: flex; min-height: 0; }
+.panel-note-rte .rte-wrapper { flex: 1; border: none; border-radius: 0; }
+
+.schedule-color-cell { display: flex; align-items: center; gap: 4px; }
+.schedule-color-cell input[type="color"] { width: 32px; height: 28px; padding: 2px; border: 1px solid #e5e7eb; border-radius: 4px; cursor: pointer; }

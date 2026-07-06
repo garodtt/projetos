@@ -4,6 +4,7 @@ import { isImageFile, fileIcon, ATTACHMENT_ACCEPT } from '../../utils/files';
 import { useToast } from '../Toast';
 import Spinner from '../Spinner';
 import DiagramModal from './DiagramModal';
+import RichTextEditor from '../RichTextEditor';
 
 export default function PanelSection({ projectId }) {
   const showToast = useToast();
@@ -172,11 +173,12 @@ export default function PanelSection({ projectId }) {
     if (error) alert('Erro ao enviar para trás: ' + error.message);
   }
 
-  function updateLocalNote(id, text) {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, note_text: text } : i));
+  function updateLocalNote(id, html) {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, note_text: html } : i));
   }
-  async function persistNoteText(item) {
-    const { error } = await supabase.from('panel_items').update({ note_text: item.note_text }).eq('id', item.id);
+  async function persistNoteHtml(item, html) {
+    updateLocalNote(item.id, html);
+    const { error } = await supabase.from('panel_items').update({ note_text: html }).eq('id', item.id);
     if (error) alert('Erro ao salvar nota: ' + error.message);
   }
 
@@ -258,13 +260,13 @@ export default function PanelSection({ projectId }) {
                   )}
 
                   {item.type === 'nota' && (
-                    <textarea
-                      className="panel-note-text"
-                      value={item.note_text || ''}
-                      onChange={e => updateLocalNote(item.id, e.target.value)}
-                      onBlur={() => persistNoteText(item)}
-                      placeholder="Escreva sua anotação..."
-                    />
+                    <div className="panel-note-rte">
+                      <RichTextEditor
+                        value={item.note_text || ''}
+                        onChange={html => persistNoteHtml(item, html)}
+                        placeholder="Escreva sua anotação..."
+                      />
+                    </div>
                   )}
 
                   {item.type === 'imagem' && (

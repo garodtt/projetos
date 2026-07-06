@@ -178,6 +178,11 @@ export default function ScheduleTab({ projectId }) {
   function handleResourceChange(task, value) { updateLocalTask(task.id, { resource_names: value }); }
   function handleResourceBlur(task) { persistTask(task.id, { resource_names: task.resource_names }); }
 
+  function handleColorChange(task, color) {
+    updateLocalTask(task.id, { color });
+    persistTask(task.id, { color });
+  }
+
   async function indentTask(task) {
     updateLocalTask(task.id, { level: task.level + 1 });
     await persistTask(task.id, { level: task.level + 1 });
@@ -293,6 +298,7 @@ export default function ScheduleTab({ projectId }) {
               onStartDateChange={handleStartDateChange}
               onResourceChange={handleResourceChange}
               onResourceBlur={handleResourceBlur}
+              onColorChange={handleColorChange}
               onIndent={indentTask}
               onOutdent={outdentTask}
               onMoveUp={t => moveTask(t, 'up')}

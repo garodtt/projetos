@@ -176,12 +176,13 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
           {tasks.map(t => {
             const bar = barsByTaskId[t.id];
             const isMilestone = bar.width <= 4;
+            const colorStyle = t.color ? { background: t.color } : undefined;
             return (
               <div key={t.id}>
                 {isMilestone ? (
-                  <div className="gantt-milestone" style={{ left: bar.left, top: bar.centerY }} />
+                  <div className="gantt-milestone" style={{ left: bar.left, top: bar.centerY, ...colorStyle }} />
                 ) : (
-                  <div className="gantt-bar" style={{ left: bar.left, width: bar.width, top: bar.top, height: BAR_HEIGHT }} />
+                  <div className="gantt-bar" style={{ left: bar.left, width: bar.width, top: bar.top, height: BAR_HEIGHT, ...colorStyle }} />
                 )}
                 <div className="gantt-bar-label" style={{ left: bar.left + Math.max(bar.width, 10) + 6, top: bar.top }}>
                   {t.name}
