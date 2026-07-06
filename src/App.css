@@ -316,3 +316,19 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .schedule-color-cell { display: flex; align-items: center; gap: 4px; }
 .schedule-color-cell input[type="color"] { width: 32px; height: 28px; padding: 2px; border: 1px solid #e5e7eb; border-radius: 4px; cursor: pointer; }
+
+.schedule-general-btn { padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; background: #0f766e; color: #fff; }
+.schedule-general-btn.active { box-shadow: inset 0 0 0 2px #5eead4; }
+
+.schedule-folder-btn.active { background: rgba(255,255,255,0.2); color: #fff; }
+
+.project-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; color: #fff; white-space: nowrap; }
+
+.project-filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.project-chip { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 16px; border: 2px solid #ccc; background: #fff; cursor: pointer; font-size: 12px; }
+.project-chip.is-hidden { opacity: 0.4; }
+.project-chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.combined-schedule-row { cursor: pointer; }
+.combined-schedule-row:hover { background: #f9fafb; }
+.combined-table-pane { width: 640px; flex: 0 0 auto; overflow-x: auto; border-right: 1px solid #e5e7eb; }

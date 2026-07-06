@@ -5,6 +5,7 @@ import ProjectModal from './components/ProjectModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
+import CombinedScheduleView from './components/schedule/CombinedScheduleView';
 import Spinner from './components/Spinner';
 
 export default function App() {
@@ -19,6 +20,9 @@ export default function App() {
   const [projectModalMode, setProjectModalMode] = useState('new');
   const [initialFolderId, setInitialFolderId] = useState(null);
   const [taskRefreshTick, setTaskRefreshTick] = useState(0);
+
+  const [mainView, setMainView] = useState('project'); // 'project' | 'combinedSchedule'
+  const [combinedScope, setCombinedScope] = useState(null); // { type: 'global' } | { type: 'folder', folderId, folderName }
 
   const bumpTaskRefresh = useCallback(() => setTaskRefreshTick(t => t + 1), []);
 
@@ -70,6 +74,7 @@ export default function App() {
   }
 
   async function selectProject(id) {
+    setMainView('project');
     if (id === currentProjectId) return;
     setCurrentProjectId(id);
     setProjectLoading(true);
@@ -107,6 +112,23 @@ export default function App() {
     await loadPendingCounts();
   }
 
+  function openGlobalSchedule() {
+    setCurrentProjectId(null);
+    setMainView('combinedSchedule');
+    setCombinedScope({ type: 'global' });
+  }
+
+  function openFolderSchedule(folder) {
+    setCurrentProjectId(null);
+    setMainView('combinedSchedule');
+    setCombinedScope({ type: 'folder', folderId: folder.id, folderName: folder.name });
+  }
+
+  async function handleOpenProjectFromCombined(projectId) {
+    await selectProject(projectId);
+    setActiveTab('schedule');
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -116,18 +138,26 @@ export default function App() {
         currentProjectId={currentProjectId}
         onSelect={selectProject}
         onNewProject={openNewProjectModal}
+        onOpenGlobalSchedule={openGlobalSchedule}
+        onOpenFolderSchedule={openFolderSchedule}
+        isGlobalScheduleActive={mainView === 'combinedSchedule' && combinedScope?.type === 'global'}
+        activeFolderScheduleId={mainView === 'combinedSchedule' && combinedScope?.type === 'folder' ? combinedScope.folderId : null}
       />
 
       <main className="content">
-        {!currentProjectId && (
+        {mainView === 'combinedSchedule' && combinedScope && (
+          <CombinedScheduleView scope={combinedScope} onOpenProject={handleOpenProjectFromCombined} />
+        )}
+
+        {mainView === 'project' && !currentProjectId && (
           <div className="empty-state"><p>Selecione um projeto na lateral ou crie um novo para começar.</p></div>
         )}
 
-        {currentProjectId && projectLoading && (
+        {mainView === 'project' && currentProjectId && projectLoading && (
           <div className="empty-state"><Spinner /></div>
         )}
 
-        {currentProjectId && !projectLoading && currentProject && (
+        {mainView === 'project' && currentProjectId && !projectLoading && currentProject && (
           <>
             <div className="project-header">
               <h1>{currentProject.name}</h1>

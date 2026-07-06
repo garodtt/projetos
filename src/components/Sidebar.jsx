@@ -3,7 +3,10 @@ import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import Spinner from './Spinner';
 
-export default function Sidebar({ projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject }) {
+export default function Sidebar({
+  projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject,
+  onOpenGlobalSchedule, onOpenFolderSchedule, isGlobalScheduleActive, activeFolderScheduleId,
+}) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
   const [foldersLoading, setFoldersLoading] = useState(true);
@@ -98,6 +101,12 @@ export default function Sidebar({ projects, loading, pendingCounts, currentProje
           {folderPending > 0 && <span className="pending-badge">{folderPending}</span>}
           <div className="folder-actions">
             <button className="icon-btn" onClick={e => { e.stopPropagation(); onNewProject(folder.id); }} title="Novo projeto nesta pasta" aria-label="Novo projeto nesta pasta">+</button>
+            <button
+              className={'icon-btn schedule-folder-btn' + (activeFolderScheduleId === folder.id ? ' active' : '')}
+              onClick={e => { e.stopPropagation(); onOpenFolderSchedule(folder); }}
+              title="Cronograma desta pasta"
+              aria-label="Cronograma desta pasta"
+            >📅</button>
             <button className="icon-btn" onClick={e => renameFolder(folder, e)} title="Renomear pasta" aria-label="Renomear pasta">✎</button>
             <button className="icon-btn delete-col" onClick={e => deleteFolder(folder, e)} title="Excluir pasta" aria-label="Excluir pasta">✕</button>
           </div>
@@ -121,6 +130,12 @@ export default function Sidebar({ projects, loading, pendingCounts, currentProje
       <div className="sidebar-actions">
         <button className="new-project-btn" onClick={() => onNewProject()}>+ Novo Projeto</button>
         <button className="new-folder-btn" onClick={addFolder}>+ Nova Pasta</button>
+        <button
+          className={'schedule-general-btn' + (isGlobalScheduleActive ? ' active' : '')}
+          onClick={onOpenGlobalSchedule}
+        >
+          📅 Cronograma Geral
+        </button>
       </div>
       <div className="project-list">
         {(loading || foldersLoading) ? (
