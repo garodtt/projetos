@@ -18,10 +18,22 @@ export function buildVersionLabel(project) {
 export async function registerVersionColumnArrival(projectId, level, itemId, itemTitle) {
   if (!level || !LEVEL_TO_FIELD[level]) return;
 
+  if (itemId) {
+    const { data: itemRow, error: itemError } = await supabase
+      .from('versions').select('counted_in_version').eq('id', itemId).single();
+    if (itemError) { console.error(itemError); return; }
+    if (itemRow?.counted_in_version) return;
+  }
+
   const { error: insertError } = await supabase.from('version_pending_items').insert({
     project_id: projectId, level, version_id: itemId, item_title: itemTitle || '(sem título)',
   });
   if (insertError) { console.error(insertError); return; }
+
+  if (itemId) {
+    const { error: flagError } = await supabase.from('versions').update({ counted_in_version: true }).eq('id', itemId);
+    if (flagError) console.error(flagError);
+  }
 
   const { data: project, error: projError } = await supabase
     .from('projects').select('*').eq('id', projectId).single();

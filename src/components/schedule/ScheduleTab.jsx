@@ -4,7 +4,7 @@ import { useToast } from '../Toast';
 import Spinner from '../Spinner';
 import ScheduleTaskTable from './ScheduleTaskTable';
 import GanttChart from './GanttChart';
-import { computeEndDate, computeDateRange } from '../../utils/schedule';
+import { computeEndDate, computeDateRange, addDaysToDate, daysBetweenDates } from '../../utils/schedule';
 
 const TABLE_WIDTH_STORAGE_KEY = 'cronograma_table_width';
 
@@ -16,6 +16,7 @@ export default function ScheduleTab({ projectId }) {
   const [viewMode, setViewMode] = useState('Dia');
   const [predecessorDrafts, setPredecessorDrafts] = useState({});
   const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+  const durationEditOriginalEnd = useRef({});
 
   const [tableWidth, setTableWidth] = useState(() => {
     const saved = Number(localStorage.getItem(TABLE_WIDTH_STORAGE_KEY));
@@ -135,6 +136,56 @@ export default function ScheduleTab({ projectId }) {
     if (error) { alert('Erro ao salvar: ' + error.message); load(); }
   }
 
+  // ---------- Deslocamento em cascata ----------
+  function computeCascadeUpdates(rootTaskId, rootSelfChanges, oldEndDate) {
+    const taskById = new Map(tasks.map(t => [t.id, t]));
+    const updates = new Map();
+    updates.set(rootTaskId, rootSelfChanges);
+
+    const newEndDate = rootSelfChanges.end_date;
+    const delta = daysBetweenDates(oldEndDate, newEndDate);
+
+    if (delta !== 0) {
+      const visited = new Set([rootTaskId]);
+      const queue = [rootTaskId];
+      while (queue.length) {
+        const currentId = queue.shift();
+        const successorIds = dependencies
+          .filter(d => d.predecessor_id === currentId)
+          .map(d => d.task_id);
+        for (const succId of successorIds) {
+          if (visited.has(succId)) continue;
+          visited.add(succId);
+          const succTask = taskById.get(succId);
+          if (!succTask) continue;
+          const base = updates.get(succId) || succTask;
+          const shiftedStart = addDaysToDate(base.start_date, delta);
+          const shiftedEnd = addDaysToDate(base.end_date, delta);
+          updates.set(succId, { start_date: shiftedStart, end_date: shiftedEnd });
+          queue.push(succId);
+        }
+      }
+    }
+    return updates;
+  }
+
+  async function commitTaskDatesWithCascade(taskId, selfChanges, oldEndDate) {
+    const updates = computeCascadeUpdates(taskId, selfChanges, oldEndDate);
+
+    setTasks(prev => prev.map(t => (updates.has(t.id) ? { ...t, ...updates.get(t.id) } : t)));
+
+    const entries = Array.from(updates.entries());
+    const results = await Promise.all(entries.map(([id, changes]) =>
+      supabase.from('schedule_tasks').update({ ...changes, updated_at: new Date().toISOString() }).eq('id', id)
+    ));
+    const failed = results.find(r => r.error);
+    if (failed) { alert('Erro ao salvar datas: ' + failed.error.message); load(); return; }
+
+    if (entries.length > 1) {
+      showToast('Datas ajustadas em ' + (entries.length - 1) + ' tarefa(s) dependente(s)');
+    }
+  }
+
   async function addTask() {
     const today = new Date().toISOString().slice(0, 10);
     const position = tasks.length ? Math.max(...tasks.map(t => t.position)) + 1 : 0;
@@ -156,23 +207,26 @@ export default function ScheduleTab({ projectId }) {
   function handleNameBlur(task) { persistTask(task.id, { name: task.name }); }
 
   function handleDurationValueChange(task, value) {
+    if (!(task.id in durationEditOriginalEnd.current)) {
+      durationEditOriginalEnd.current[task.id] = task.end_date;
+    }
     const newEnd = computeEndDate(task.start_date, value, task.duration_unit);
     updateLocalTask(task.id, { duration_value: value, end_date: newEnd });
   }
   function handleDurationValueBlur(task) {
-    persistTask(task.id, { duration_value: task.duration_value, end_date: task.end_date });
+    const oldEnd = durationEditOriginalEnd.current[task.id] ?? task.end_date;
+    delete durationEditOriginalEnd.current[task.id];
+    commitTaskDatesWithCascade(task.id, { duration_value: task.duration_value, end_date: task.end_date }, oldEnd);
   }
 
   function handleDurationUnitChange(task, unit) {
     const newEnd = computeEndDate(task.start_date, task.duration_value, unit);
-    updateLocalTask(task.id, { duration_unit: unit, end_date: newEnd });
-    persistTask(task.id, { duration_unit: unit, end_date: newEnd });
+    commitTaskDatesWithCascade(task.id, { duration_unit: unit, end_date: newEnd }, task.end_date);
   }
 
   function handleStartDateChange(task, value) {
     const newEnd = computeEndDate(value, task.duration_value, task.duration_unit);
-    updateLocalTask(task.id, { start_date: value, end_date: newEnd });
-    persistTask(task.id, { start_date: value, end_date: newEnd });
+    commitTaskDatesWithCascade(task.id, { start_date: value, end_date: newEnd }, task.end_date);
   }
 
   function handleResourceChange(task, value) { updateLocalTask(task.id, { resource_names: value }); }
