@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
+import ScheduleTab from './components/schedule/ScheduleTab';
 import Spinner from './components/Spinner';
 
 export default function App() {
@@ -136,6 +137,7 @@ export default function App() {
             <div className="tabs">
               <button className={'tab-btn' + (activeTab === 'activities' ? ' active' : '')} onClick={() => setActiveTab('activities')}>Atividades</button>
               <button className={'tab-btn' + (activeTab === 'kanban' ? ' active' : '')} onClick={() => setActiveTab('kanban')}>Tarefas</button>
+              <button className={'tab-btn' + (activeTab === 'schedule' ? ' active' : '')} onClick={() => setActiveTab('schedule')}>Cronograma</button>
             </div>
 
             <div className={'panel' + (activeTab === 'activities' ? ' active' : '')}>
@@ -149,6 +151,9 @@ export default function App() {
             </div>
             <div className={'panel' + (activeTab === 'kanban' ? ' active' : '')}>
               <TasksTab projectId={currentProjectId} onDataChanged={loadPendingCounts} refreshTick={taskRefreshTick} />
+            </div>
+            <div className={'panel' + (activeTab === 'schedule' ? ' active' : '')}>
+              <ScheduleTab projectId={currentProjectId} />
             </div>
           </>
         )}

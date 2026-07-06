@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { isImageFile, fileIcon, ATTACHMENT_ACCEPT } from '../../utils/files';
 import { useToast } from '../Toast';
-import AttachmentsField from '../AttachmentsField';
 
 export default function VersionModal({ projectId, columnId, version, nextPosition, onClose, onSaved }) {
   const showToast = useToast();
@@ -13,6 +13,7 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   const [priority, setPriority] = useState(version?.priority || 'normal');
   const [attachments, setAttachments] = useState(version?.attachments || []);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const fileInputRef = useRef(null);
 
   async function handleAddAttachment(file) {
     setUploadingAttachment(true);
@@ -106,12 +107,26 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
         <label>Descrição</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="O que foi alterado..." />
 
-        <AttachmentsField
-          attachments={attachments}
-          uploading={uploadingAttachment}
-          onAdd={handleAddAttachment}
-          onRemove={handleRemoveAttachment}
-        />
+        <label>Anexo</label>
+        {attachments.length > 0 ? (
+          <div className="attachments-list">
+            {attachments.map(att => (
+              <div key={att.id} className="attachment-row">
+                {isImageFile(att.file_name) ? (
+                  <img className="attachment-row-thumb" src={att.file_url} alt="" />
+                ) : (
+                  <span className="attachment-row-icon">{fileIcon(att.file_name)}</span>
+                )}
+                <a className="attachment-row-name" href={att.file_url} target="_blank" rel="noreferrer">{att.file_name}</a>
+                <button type="button" className="icon-btn" onClick={() => handleRemoveAttachment(att)} aria-label="Remover anexo">✕</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <button type="button" className="secondary small" onClick={() => fileInputRef.current.click()} disabled={uploadingAttachment}>
+          {uploadingAttachment ? 'Enviando...' : '+ Adicionar arquivo'}
+        </button>
+        <input ref={fileInputRef} type="file" accept={ATTACHMENT_ACCEPT} className="hidden" onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleAddAttachment(f); }} />
 
         <div className="actions">
           <button className="secondary" onClick={onClose}>Cancelar</button>
