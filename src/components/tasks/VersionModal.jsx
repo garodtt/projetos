@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 import AttachmentsField from '../AttachmentsField';
+import { COMPLEXITY_OPTIONS } from '../../constants';
 
 export default function VersionModal({ projectId, columnId, version, nextPosition, onClose, onSaved }) {
   const showToast = useToast();
   const isEditing = Boolean(version);
-  const [label, setLabel] = useState(version?.version_label || '');
+  const [title, setTitle] = useState(version?.title || '');
   const [requester, setRequester] = useState(version?.requester_name || '');
   const [date, setDate] = useState(version?.change_date || '');
   const [description, setDescription] = useState(version?.description || '');
   const [priority, setPriority] = useState(version?.priority || 'normal');
+  const [complexity, setComplexity] = useState(version?.complexity || 'media');
   const [attachments, setAttachments] = useState(version?.attachments || []);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
@@ -48,13 +50,13 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   }
 
   async function handleSave() {
-    const version_label = label.trim();
+    const finalTitle = title.trim();
     const requester_name = requester.trim();
     const change_date = date || new Date().toISOString().slice(0, 10);
     const desc = description.trim();
-    if (!version_label || !requester_name) { alert('Preencha a versão e quem solicitou.'); return; }
+    if (!finalTitle || !requester_name) { alert('Preencha o título e quem solicitou.'); return; }
 
-    const payload = { version_label, requester_name, change_date, description: desc, priority };
+    const payload = { title: finalTitle, requester_name, change_date, description: desc, priority, complexity };
     let result;
     if (isEditing) {
       result = await supabase.from('versions').update(payload).eq('id', version.id);
@@ -86,14 +88,20 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
     <div className="overlay">
       <div className="modal">
         <h3>{isEditing ? 'Editar item' : 'Novo item'}</h3>
-        <label>Versão</label>
-        <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: v1.2.0" />
+        <label>Título</label>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título da tarefa" />
         <label>Quem solicitou</label>
         <input value={requester} onChange={e => setRequester(e.target.value)} placeholder="Nome" />
         <div className="row">
           <div>
             <label>Data da alteração</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label>Complexidade</label>
+            <select value={complexity} onChange={e => setComplexity(e.target.value)}>
+              {COMPLEXITY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
           </div>
           <div>
             <label>Prioridade</label>

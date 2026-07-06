@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { ACTIVITY_TAG_LABEL } from '../../constants';
+import { ACTIVITY_TAG_LABEL, COMPLEXITY_LABEL } from '../../constants';
 import { formatDate } from '../../utils/format';
 import { isImageFile, fileIcon } from '../../utils/files';
 import { exportMeetingsPdf } from '../../utils/exportPdf';
@@ -87,7 +87,10 @@ export default function ActivitiesTab({ projectId, projectName, onActivityConver
           {visible.map(a => (
             <div key={a.id} className="card" onClick={() => openEdit(a)}>
               <span className={'tag ' + a.type}>{ACTIVITY_TAG_LABEL[a.type]}</span>
+              {a.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
+              {a.complexity && <span className={'complexity-tag ' + a.complexity}>{COMPLEXITY_LABEL[a.complexity]}</span>}
               <small> · {a.person_name} · {formatDate(a.activity_date)}{a.status ? ' · status: ' + a.status : ''}</small>
+              {a.title && <strong className="activity-card-title">{a.title}</strong>}
               {renderAttachmentsPreview(a.attachments)}
               <p>{a.description}</p>
             </div>

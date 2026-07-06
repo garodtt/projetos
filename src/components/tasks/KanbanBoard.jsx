@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { formatDate } from '../../utils/format';
 import { isImageFile, fileIcon } from '../../utils/files';
+import { COMPLEXITY_LABEL } from '../../constants';
 import VersionModal from './VersionModal';
 import ColumnSettingsModal from './ColumnSettingsModal';
 import Spinner from '../Spinner';
@@ -220,8 +221,9 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick }) {
                         onClick={() => openEditCard(v)}
                       >
                         {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
+                        {v.complexity && <span className={'complexity-tag ' + v.complexity}>{COMPLEXITY_LABEL[v.complexity]}</span>}
                         {renderAttachmentsPreview(v.attachments)}
-                        <strong>{v.version_label}</strong>
+                        <strong>{v.title}</strong>
                         <small>{formatDate(v.change_date)} · {v.requester_name}</small>
                         <p>{v.description || ''}</p>
                       </div>

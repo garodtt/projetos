@@ -11,3 +11,11 @@ export const ACTIVITY_LABELS = {
 };
 
 export const ACTIVITY_TAG_LABEL = { reuniao: 'Reunião', melhoria: 'Melhoria', correcao: 'Correção' };
+
+export const COMPLEXITY_OPTIONS = [
+  { value: 'minima', label: 'Mínima' },
+  { value: 'media', label: 'Média' },
+  { value: 'grande', label: 'Grande' },
+];
+
+export const COMPLEXITY_LABEL = { minima: 'Mínima', media: 'Média', grande: 'Grande' };

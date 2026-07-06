@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME } from '../../constants';
+import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME, COMPLEXITY_OPTIONS } from '../../constants';
 import { useToast } from '../Toast';
 import AttachmentsField from '../AttachmentsField';
 
@@ -12,8 +12,17 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
   const [date, setDate] = useState(activity?.activity_date || '');
   const [description, setDescription] = useState(activity?.description || '');
   const [status, setStatus] = useState(activity?.status || 'pendente');
+  const [title, setTitle] = useState(activity?.title || '');
+  const [complexity, setComplexity] = useState(activity?.complexity || 'media');
+  const [priority, setPriority] = useState(activity?.priority || 'normal');
   const [attachments, setAttachments] = useState(activity?.attachments || []);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  function handleTypeChange(newType) {
+    setType(newType);
+    if (newType === 'correcao') setPriority('urgente');
+    else if (newType === 'melhoria') setPriority('normal');
+  }
 
   async function handleAddAttachment(file) {
     setUploadingAttachment(true);
@@ -77,12 +86,13 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
     const { data: newVersion, error } = await supabase.from('versions').insert({
       project_id: projectId,
       column_id: columnId,
-      version_label: ACTIVITY_TAG_LABEL[payloadActivity.type],
+      title: payloadActivity.title || ACTIVITY_TAG_LABEL[payloadActivity.type],
       requester_name: payloadActivity.person_name,
       change_date: payloadActivity.activity_date,
       description: payloadActivity.description,
       position: nextPosition,
-      priority: payloadActivity.type === 'correcao' ? 'urgente' : 'normal',
+      priority: payloadActivity.priority || (payloadActivity.type === 'correcao' ? 'urgente' : 'normal'),
+      complexity: payloadActivity.complexity || 'media',
     }).select().single();
     if (error) { alert('Erro ao criar tarefa a partir da solicitação: ' + error.message); return; }
 
@@ -100,7 +110,9 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
     const person_name = personName.trim();
     const activity_date = date || new Date().toISOString().slice(0, 10);
     const desc = description.trim();
+    const finalTitle = title.trim();
     if (!person_name || !desc) { alert('Preencha o nome e a descrição.'); return; }
+    if (type !== 'reuniao' && !finalTitle) { alert('Informe um título.'); return; }
 
     const payload = {
       type,
@@ -108,6 +120,9 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
       activity_date,
       description: desc,
       status: type === 'reuniao' ? null : status,
+      title: type === 'reuniao' ? null : finalTitle,
+      complexity: type === 'reuniao' ? null : complexity,
+      priority: type === 'reuniao' ? null : priority,
     };
 
     let result;
@@ -153,12 +168,20 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
               key={t}
               type="button"
               className={'type-btn' + (type === t ? ' active' : '')}
-              onClick={() => setType(t)}
+              onClick={() => handleTypeChange(t)}
             >
               {t === 'reuniao' ? 'Reunião' : t === 'melhoria' ? 'Melhoria' : 'Correção'}
             </button>
           ))}
         </div>
+
+        {type !== 'reuniao' && (
+          <>
+            <label>Título</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título da solicitação" />
+          </>
+        )}
+
         <div className="row">
           <div>
             <label>{ACTIVITY_LABELS[type].person}</label>
@@ -169,6 +192,25 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
             <input type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
         </div>
+
+        {type !== 'reuniao' && (
+          <div className="row">
+            <div>
+              <label>Complexidade</label>
+              <select value={complexity} onChange={e => setComplexity(e.target.value)}>
+                {COMPLEXITY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label>Prioridade</label>
+              <select value={priority} onChange={e => setPriority(e.target.value)}>
+                <option value="normal">Normal</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+          </div>
+        )}
+
         {type !== 'reuniao' && (
           <div>
             <label>Status</label>
@@ -179,6 +221,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
             </select>
           </div>
         )}
+
         <label>{ACTIVITY_LABELS[type].desc}</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} />
 
