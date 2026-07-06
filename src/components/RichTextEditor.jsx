@@ -8,7 +8,8 @@ const FONT_OPTIONS = [
   { value: 'Verdana', label: 'Verdana' },
 ];
 
-const CHECKLIST_HTML = '<div class="rte-checklist-item"><input type="checkbox" contenteditable="false"><span>Item</span></div><div><br></div>';
+const CHECKLIST_HTML = '<ul class="rte-checklist"><li class="rte-checklist-item">Item</li></ul><p><br></p>';
+const CHECKBOX_CLICK_ZONE = 24;
 
 export default function RichTextEditor({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
@@ -54,13 +55,12 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
   }
 
   function handleEditorClick(e) {
-    const checkbox = e.target.closest('input[type="checkbox"]');
-    if (!checkbox) return;
-    setTimeout(() => {
-      if (checkbox.checked) checkbox.setAttribute('checked', 'checked');
-      else checkbox.removeAttribute('checked');
-      handleBlurSave();
-    }, 0);
+    const item = e.target.closest('.rte-checklist-item');
+    if (!item) return;
+    const rect = item.getBoundingClientRect();
+    if (e.clientX - rect.left > CHECKBOX_CLICK_ZONE) return;
+    item.classList.toggle('is-checked');
+    handleBlurSave();
   }
 
   function handleBlurSave() {

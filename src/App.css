@@ -307,9 +307,30 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .rte-editor { flex: 1; overflow-y: auto; padding: 8px; font-size: 13px; line-height: 1.4; outline: none; }
 .rte-editor:empty::before { content: attr(data-placeholder); color: #9ca3af; }
 .rte-editor ul, .rte-editor ol { margin: 4px 0; padding-left: 20px; }
-.rte-checklist-item { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0; }
-.rte-checklist-item input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
-.rte-checklist-item input[type="checkbox"]:checked + span { text-decoration: line-through; color: #9ca3af; }
+.rte-checklist { list-style: none; margin: 4px 0; padding-left: 0; }
+.rte-checklist-item { position: relative; padding-left: 26px; margin: 3px 0; cursor: default; }
+.rte-checklist-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #9ca3af;
+  border-radius: 3px;
+  background: #fff;
+  box-sizing: border-box;
+}
+.rte-checklist-item.is-checked::before {
+  content: '✓';
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+}
+.rte-checklist-item.is-checked { text-decoration: line-through; color: #9ca3af; }
 
 .panel-note-rte { flex: 1; display: flex; min-height: 0; }
 .panel-note-rte .rte-wrapper { flex: 1; border: none; border-radius: 0; }
