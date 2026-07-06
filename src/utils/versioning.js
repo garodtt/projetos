@@ -15,6 +15,23 @@ export function buildVersionLabel(project) {
   return `${project.version_major}.${project.version_minor}.${project.version_patch}`;
 }
 
+export async function fetchVersionProgress(projectId) {
+  const [projRes, pendingRes] = await Promise.all([
+    supabase.from('projects')
+      .select('version_threshold_grande, version_threshold_media, version_threshold_minima')
+      .eq('id', projectId).single(),
+    supabase.from('version_pending_items').select('level').eq('project_id', projectId),
+  ]);
+  const thresholds = {
+    grande: projRes.data?.version_threshold_grande || 1,
+    media: projRes.data?.version_threshold_media || 1,
+    minima: projRes.data?.version_threshold_minima || 1,
+  };
+  const counts = { grande: 0, media: 0, minima: 0 };
+  (pendingRes.data || []).forEach(p => { counts[p.level] = (counts[p.level] || 0) + 1; });
+  return { thresholds, counts };
+}
+
 export async function registerVersionColumnArrival(projectId, level, itemId, itemTitle) {
   if (!level || !LEVEL_TO_FIELD[level]) return;
 

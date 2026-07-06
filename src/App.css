@@ -378,6 +378,7 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
   box-sizing: content-box;
 }
 .version-progress-row input[type="number"] {
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 .version-progress-row input[type="number"]::-webkit-outer-spin-button,
@@ -396,3 +397,32 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .project-header-block { margin-bottom: 16px; }
 .project-header-secondary-row { display: flex; justify-content: flex-end; margin-top: 6px; }
 .version-badge-btn { font-weight: 600; }
+
+.toast-action-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer; margin-left: 4px; }
+.toast-action-btn:hover { background: rgba(255,255,255,0.15); }
+
+.sidebar-utility-row { display: flex; gap: 6px; margin-top: 4px; }
+.sidebar-utility-btn { flex: 1; padding: 7px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; background: #374151; color: #d1d5db; }
+.sidebar-utility-btn:hover { background: #4b5563; color: #fff; }
+
+.archived-link { margin: 8px 0 0; padding: 8px; border: none; border-radius: 6px; background: none; color: #9ca3af; cursor: pointer; font-size: 12px; text-align: left; }
+.archived-link:hover { color: #fff; }
+
+.trash-list { display: flex; flex-direction: column; gap: 16px; max-height: 55vh; overflow-y: auto; }
+.trash-group h4 { margin: 0 0 6px; font-size: 13px; color: #6b7280; }
+.trash-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px; }
+.trash-row-info { display: flex; flex-direction: column; font-size: 13px; }
+.trash-project-tag { color: #9ca3af; }
+.trash-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.archived-list { display: flex; flex-direction: column; gap: 8px; }
+.archived-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
+
+.search-results { max-height: 55vh; overflow-y: auto; }
+.search-group { margin-bottom: 14px; }
+.search-group h4 { margin: 0 0 6px; font-size: 13px; color: #6b7280; }
+.search-result-row { padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px; cursor: pointer; font-size: 13px; }
+.search-result-row:hover { background: #f9fafb; }
+
+.version-column-badge-btn { padding: 0 4px; font-size: 12px; }
+.assignee-line { display: block; color: #6b7280; }

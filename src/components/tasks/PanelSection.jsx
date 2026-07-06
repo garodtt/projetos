@@ -19,7 +19,7 @@ export default function PanelSection({ projectId }) {
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
-      .from('panel_items').select('*').eq('project_id', projectId).order('created_at', { ascending: true });
+      .from('panel_items').select('*').eq('project_id', projectId).is('deleted_at', null).order('created_at', { ascending: true });
     if (error) { alert('Erro ao carregar o painel: ' + error.message); setLoading(false); return; }
     setItems(data);
     setLoading(false);
@@ -86,11 +86,16 @@ export default function PanelSection({ projectId }) {
   }
 
   async function deleteItem(item) {
-    if (!confirm('Excluir este item do painel?')) return;
-    const { error } = await supabase.from('panel_items').delete().eq('id', item.id);
+    const { error } = await supabase.from('panel_items').update({ deleted_at: new Date().toISOString() }).eq('id', item.id);
     if (error) { alert('Erro ao excluir: ' + error.message); return; }
     setItems(prev => prev.filter(i => i.id !== item.id));
-    showToast('Item removido do painel');
+    showToast('Item removido do painel', {
+      actionLabel: 'Desfazer',
+      onAction: async () => {
+        await supabase.from('panel_items').update({ deleted_at: null }).eq('id', item.id);
+        load();
+      },
+    });
   }
 
   function updateLocalPosition(id, x, y) {

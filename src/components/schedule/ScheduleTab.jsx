@@ -27,7 +27,7 @@ export default function ScheduleTab({ projectId }) {
 
   const load = useCallback(async () => {
     const [tasksRes, depsRes] = await Promise.all([
-      supabase.from('schedule_tasks').select('*').eq('project_id', projectId).order('position', { ascending: true }),
+      supabase.from('schedule_tasks').select('*').eq('project_id', projectId).is('deleted_at', null).order('position', { ascending: true }),
       supabase.from('schedule_dependencies').select('*'),
     ]);
     if (tasksRes.error) { alert('Erro ao carregar cronograma: ' + tasksRes.error.message); setLoading(false); return; }
@@ -136,7 +136,6 @@ export default function ScheduleTab({ projectId }) {
     if (error) { alert('Erro ao salvar: ' + error.message); load(); }
   }
 
-  // ---------- Deslocamento em cascata ----------
   function computeCascadeUpdates(rootTaskId, rootSelfChanges, oldEndDate) {
     const taskById = new Map(tasks.map(t => [t.id, t]));
     const updates = new Map();
@@ -261,10 +260,15 @@ export default function ScheduleTab({ projectId }) {
   }
 
   async function deleteTask(task) {
-    if (!confirm('Excluir esta tarefa do cronograma?')) return;
-    const { error } = await supabase.from('schedule_tasks').delete().eq('id', task.id);
+    const { error } = await supabase.from('schedule_tasks').update({ deleted_at: new Date().toISOString() }).eq('id', task.id);
     if (error) { alert('Erro ao excluir: ' + error.message); return; }
-    showToast('Tarefa excluída');
+    showToast('Tarefa excluída', {
+      actionLabel: 'Desfazer',
+      onAction: async () => {
+        await supabase.from('schedule_tasks').update({ deleted_at: null }).eq('id', task.id);
+        load();
+      },
+    });
     load();
   }
 

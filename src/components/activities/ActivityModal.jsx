@@ -59,7 +59,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
 
   async function getOrCreateUnassignedColumnId() {
     const { data: existing, error: fetchError } = await supabase
-      .from('kanban_columns').select('*').eq('project_id', projectId);
+      .from('kanban_columns').select('*').eq('project_id', projectId).is('deleted_at', null);
     if (fetchError) { alert('Erro ao buscar colunas: ' + fetchError.message); return null; }
 
     const found = existing.find(c => c.name.trim().toLowerCase() === UNASSIGNED_COLUMN_NAME.toLowerCase());
@@ -79,7 +79,7 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
     if (!columnId) return;
 
     const { data: existingCards } = await supabase
-      .from('versions').select('position').eq('column_id', columnId)
+      .from('versions').select('position').eq('column_id', columnId).is('deleted_at', null)
       .order('position', { ascending: false }).limit(1);
     const nextPosition = existingCards && existingCards.length ? (existingCards[0].position ?? -1) + 1 : 0;
 
@@ -151,10 +151,15 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
 
   async function handleDelete() {
     if (!isEditing) return;
-    if (!confirm('Excluir esta atividade?')) return;
-    const { error } = await supabase.from('activities').delete().eq('id', activity.id);
+    const { error } = await supabase.from('activities').update({ deleted_at: new Date().toISOString() }).eq('id', activity.id);
     if (error) { alert('Erro ao excluir atividade: ' + error.message); return; }
-    showToast('Atividade excluída');
+    showToast('Atividade excluída', {
+      actionLabel: 'Desfazer',
+      onAction: async () => {
+        await supabase.from('activities').update({ deleted_at: null }).eq('id', activity.id);
+        onSaved(false);
+      },
+    });
     onSaved(false);
   }
 

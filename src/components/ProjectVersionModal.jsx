@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import Spinner from './Spinner';
-import { buildVersionLabel } from '../utils/versioning';
+import { buildVersionLabel, fetchVersionProgress } from '../utils/versioning';
 
 const LEVEL_LABEL = { grande: 'Grande', media: 'Média', minima: 'Mínima' };
 
@@ -23,25 +23,17 @@ export default function ProjectVersionModal({ projectId, onClose }) {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [projRes, pendingRes, bumpsRes, colRes] = await Promise.all([
+    const [projRes, bumpsRes, colRes, progress] = await Promise.all([
       supabase.from('projects').select('*').eq('id', projectId).single(),
-      supabase.from('version_pending_items').select('level').eq('project_id', projectId),
       supabase.from('version_bumps').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
-      supabase.from('kanban_columns').select('name').eq('project_id', projectId).eq('is_version_column', true).maybeSingle(),
+      supabase.from('kanban_columns').select('name').eq('project_id', projectId).eq('is_version_column', true).is('deleted_at', null).maybeSingle(),
+      fetchVersionProgress(projectId),
     ]);
     if (projRes.error) { alert('Erro ao carregar versão: ' + projRes.error.message); setLoading(false); return; }
 
     setProject(projRes.data);
-    setThresholds({
-      grande: projRes.data.version_threshold_grande,
-      media: projRes.data.version_threshold_media,
-      minima: projRes.data.version_threshold_minima,
-    });
-
-    const counts = { grande: 0, media: 0, minima: 0 };
-    (pendingRes.data || []).forEach(p => { counts[p.level] = (counts[p.level] || 0) + 1; });
-    setPendingCounts(counts);
-
+    setThresholds(progress.thresholds);
+    setPendingCounts(progress.counts);
     setBumps(bumpsRes.data || []);
     setVersionColumnName(colRes.data?.name || null);
     setLoading(false);

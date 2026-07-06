@@ -10,6 +10,7 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   const isEditing = Boolean(version);
   const [title, setTitle] = useState(version?.title || '');
   const [requester, setRequester] = useState(version?.requester_name || '');
+  const [assignee, setAssignee] = useState(version?.assignee_name || '');
   const [date, setDate] = useState(version?.change_date || '');
   const [description, setDescription] = useState(version?.description || '');
   const [priority, setPriority] = useState(version?.priority || 'normal');
@@ -53,11 +54,12 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   async function handleSave() {
     const finalTitle = title.trim();
     const requester_name = requester.trim();
+    const assignee_name = assignee.trim();
     const change_date = date || new Date().toISOString().slice(0, 10);
     const desc = description.trim();
     if (!finalTitle || !requester_name) { alert('Preencha o título e quem solicitou.'); return; }
 
-    const payload = { title: finalTitle, requester_name, change_date, description: desc, priority, complexity };
+    const payload = { title: finalTitle, requester_name, assignee_name: assignee_name || null, change_date, description: desc, priority, complexity };
     let result;
     if (isEditing) {
       result = await supabase.from('versions').update(payload).eq('id', version.id);
@@ -82,10 +84,15 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
 
   async function handleDelete() {
     if (!isEditing) return;
-    if (!confirm('Excluir este item?')) return;
-    const { error } = await supabase.from('versions').delete().eq('id', version.id);
+    const { error } = await supabase.from('versions').update({ deleted_at: new Date().toISOString() }).eq('id', version.id);
     if (error) { alert('Erro ao excluir item: ' + error.message); return; }
-    showToast('Item excluído');
+    showToast('Item excluído', {
+      actionLabel: 'Desfazer',
+      onAction: async () => {
+        await supabase.from('versions').update({ deleted_at: null }).eq('id', version.id);
+        onSaved();
+      },
+    });
     onSaved();
   }
 
@@ -95,8 +102,16 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
         <h3>{isEditing ? 'Editar item' : 'Novo item'}</h3>
         <label>Título</label>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título da tarefa" />
-        <label>Quem solicitou</label>
-        <input value={requester} onChange={e => setRequester(e.target.value)} placeholder="Nome" />
+        <div className="row">
+          <div>
+            <label>Quem solicitou</label>
+            <input value={requester} onChange={e => setRequester(e.target.value)} placeholder="Nome" />
+          </div>
+          <div>
+            <label>Responsável</label>
+            <input value={assignee} onChange={e => setAssignee(e.target.value)} placeholder="Quem vai executar" />
+          </div>
+        </div>
         <div className="row">
           <div>
             <label>Data da alteração</label>

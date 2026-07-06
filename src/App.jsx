@@ -3,6 +3,9 @@ import { supabase } from './lib/supabaseClient';
 import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ProjectVersionModal from './components/ProjectVersionModal';
+import GlobalSearchModal from './components/GlobalSearchModal';
+import TrashModal from './components/TrashModal';
+import ArchivedProjectsModal from './components/ArchivedProjectsModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
@@ -22,6 +25,9 @@ export default function App() {
   const [initialFolderId, setInitialFolderId] = useState(null);
   const [taskRefreshTick, setTaskRefreshTick] = useState(0);
   const [versionModalOpen, setVersionModalOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [trashModalOpen, setTrashModalOpen] = useState(false);
+  const [archivedModalOpen, setArchivedModalOpen] = useState(false);
 
   const [mainView, setMainView] = useState('project'); // 'project' | 'combinedSchedule'
   const [combinedScope, setCombinedScope] = useState(null); // { type: 'global' } | { type: 'folder', folderId, folderName }
@@ -38,13 +44,13 @@ export default function App() {
 
   const loadPendingCounts = useCallback(async () => {
     const { data: indicatorCols, error: colsError } = await supabase
-      .from('kanban_columns').select('id, project_id').eq('is_indicator', true);
+      .from('kanban_columns').select('id, project_id').eq('is_indicator', true).is('deleted_at', null);
     if (colsError) { console.error(colsError); return; }
     if (!indicatorCols || !indicatorCols.length) { setPendingCounts({}); return; }
 
     const colIds = indicatorCols.map(c => c.id);
     const { data: cards, error: cardsError } = await supabase
-      .from('versions').select('column_id').in('column_id', colIds);
+      .from('versions').select('column_id').in('column_id', colIds).is('deleted_at', null);
     if (cardsError) { console.error(cardsError); return; }
 
     const colToProject = {};
@@ -81,12 +87,15 @@ export default function App() {
     if (error) alert('Não foi possível criar as colunas padrão: ' + error.message);
   }
 
-  async function selectProject(id) {
+  async function selectProject(id, tab) {
     setMainView('project');
-    if (id === currentProjectId) return;
+    if (id === currentProjectId) {
+      if (tab) setActiveTab(tab);
+      return;
+    }
     setCurrentProjectId(id);
     setProjectLoading(true);
-    setActiveTab('activities');
+    setActiveTab(tab || 'activities');
     const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
     if (error) { alert('Erro ao carregar projeto: ' + error.message); setProjectLoading(false); return; }
     setCurrentProject(data);
@@ -137,6 +146,11 @@ export default function App() {
     setActiveTab('schedule');
   }
 
+  function handleSearchNavigate(target) {
+    setSearchModalOpen(false);
+    if (target.type === 'project') selectProject(target.projectId, target.tab);
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -150,6 +164,9 @@ export default function App() {
         onOpenFolderSchedule={openFolderSchedule}
         isGlobalScheduleActive={mainView === 'combinedSchedule' && combinedScope?.type === 'global'}
         activeFolderScheduleId={mainView === 'combinedSchedule' && combinedScope?.type === 'folder' ? combinedScope.folderId : null}
+        onOpenSearch={() => setSearchModalOpen(true)}
+        onOpenTrash={() => setTrashModalOpen(true)}
+        onOpenArchived={() => setArchivedModalOpen(true)}
       />
 
       <main className="content">
@@ -167,7 +184,7 @@ export default function App() {
 
         {mainView === 'project' && currentProjectId && !projectLoading && currentProject && (
           <>
-           <div className="project-header-block">
+            <div className="project-header-block">
               <div className="project-header">
                 <h1>{currentProject.name}</h1>
                 <button className="secondary" onClick={openEditProjectModal}>📄 Resumo</button>
@@ -203,6 +220,7 @@ export default function App() {
                 onDataChanged={loadPendingCounts}
                 refreshTick={taskRefreshTick}
                 onVersionChanged={refreshCurrentProject}
+                onOpenVersionModal={() => setVersionModalOpen(true)}
               />
             </div>
             <div className={'panel' + (activeTab === 'schedule' ? ' active' : '')}>
@@ -227,6 +245,28 @@ export default function App() {
         <ProjectVersionModal
           projectId={currentProjectId}
           onClose={() => { setVersionModalOpen(false); refreshCurrentProject(); }}
+        />
+      )}
+
+      {searchModalOpen && (
+        <GlobalSearchModal
+          onClose={() => setSearchModalOpen(false)}
+          onNavigate={handleSearchNavigate}
+        />
+      )}
+
+      {trashModalOpen && (
+        <TrashModal
+          onClose={() => setTrashModalOpen(false)}
+          onRestored={() => { loadPendingCounts(); if (currentProjectId) bumpTaskRefresh(); }}
+        />
+      )}
+
+      {archivedModalOpen && (
+        <ArchivedProjectsModal
+          projects={projects}
+          onClose={() => setArchivedModalOpen(false)}
+          onUnarchived={loadProjects}
         />
       )}
     </div>

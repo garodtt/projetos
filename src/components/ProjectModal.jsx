@@ -11,13 +11,14 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
     objectives: project?.objectives || '',
     scope: project?.scope || '',
     folder_id: project?.folder_id || initialFolderId || '',
+    is_archived: project?.is_archived || false,
   });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    supabase.from('folders').select('*').order('name', { ascending: true }).then(({ data, error }) => {
+    supabase.from('folders').select('*').is('deleted_at', null).order('name', { ascending: true }).then(({ data, error }) => {
       if (error) { console.error(error); return; }
       setFolders(data);
     });
@@ -34,6 +35,7 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
       objectives: form.objectives.trim(),
       scope: form.scope.trim(),
       folder_id: form.folder_id || null,
+      is_archived: form.is_archived,
     };
     if (!payload.name) { alert('Informe o nome do projeto'); return; }
 
@@ -78,6 +80,14 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
         <textarea rows={2} value={form.objectives} onChange={e => update('objectives', e.target.value)} />
         <label>Escopo</label>
         <textarea rows={2} value={form.scope} onChange={e => update('scope', e.target.value)} />
+
+        {mode === 'edit' && (
+          <label className="checkbox-row">
+            <input type="checkbox" checked={form.is_archived} onChange={e => update('is_archived', e.target.checked)} />
+            Arquivar projeto (some da lista principal, continua acessível em "Arquivados")
+          </label>
+        )}
+
         <div className="actions">
           <button className="secondary" onClick={onClose}>Cancelar</button>
           <button className="primary" onClick={handleSave}>Salvar</button>

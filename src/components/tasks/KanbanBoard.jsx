@@ -3,9 +3,10 @@ import { supabase } from '../../lib/supabaseClient';
 import { formatDate } from '../../utils/format';
 import { isImageFile, fileIcon } from '../../utils/files';
 import { COMPLEXITY_LABEL } from '../../constants';
-import { registerVersionColumnArrival } from '../../utils/versioning';
+import { registerVersionColumnArrival, fetchVersionProgress } from '../../utils/versioning';
 import VersionModal from './VersionModal';
 import ColumnSettingsModal from './ColumnSettingsModal';
+import TextPromptModal from '../TextPromptModal';
 import Spinner from '../Spinner';
 import { useToast } from '../Toast';
 
@@ -30,7 +31,12 @@ function renderAttachmentsPreview(attachments) {
   return <span className="attachment-chip attachment-chip-count">📎 {attachments.length} anexos</span>;
 }
 
-export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onVersionChanged }) {
+function versionProgressTooltip(progress) {
+  if (!progress) return 'Coluna de versão';
+  return `Grande ${progress.counts.grande}/${progress.thresholds.grande} · Média ${progress.counts.media}/${progress.thresholds.media} · Mínima ${progress.counts.minima}/${progress.thresholds.minima}`;
+}
+
+export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onVersionChanged, onOpenVersionModal }) {
   const showToast = useToast();
   const [columns, setColumns] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -43,11 +49,13 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
   const [modalVersion, setModalVersion] = useState(null);
   const [modalNextPosition, setModalNextPosition] = useState(0);
   const [settingsColumn, setSettingsColumn] = useState(null);
+  const [textPromptConfig, setTextPromptConfig] = useState(null);
+  const [versionProgress, setVersionProgress] = useState(null);
 
   const load = useCallback(async () => {
     const [colsRes, versionsRes] = await Promise.all([
-      supabase.from('kanban_columns').select('*').eq('project_id', projectId).order('position', { ascending: true }),
-      supabase.from('versions').select('*, attachments!version_id(*)').eq('project_id', projectId).order('position', { ascending: true }),
+      supabase.from('kanban_columns').select('*').eq('project_id', projectId).is('deleted_at', null).order('position', { ascending: true }),
+      supabase.from('versions').select('*, attachments!version_id(*)').eq('project_id', projectId).is('deleted_at', null).order('position', { ascending: true }),
     ]);
     if (colsRes.error) { alert('Erro ao carregar colunas: ' + colsRes.error.message); setLoading(false); return; }
     if (versionsRes.error) { alert('Erro ao carregar tarefas: ' + versionsRes.error.message); setLoading(false); return; }
@@ -55,6 +63,14 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
     setVersions(versionsRes.data);
     setLoading(false);
     onDataChanged?.();
+
+    const versionCol = colsRes.data.find(c => c.is_version_column);
+    if (versionCol) {
+      const progress = await fetchVersionProgress(projectId);
+      setVersionProgress(progress);
+    } else {
+      setVersionProgress(null);
+    }
   }, [projectId, onDataChanged]);
 
   useEffect(() => { load(); }, [load, refreshTick]);
@@ -65,22 +81,34 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
     return versions.filter(v => v.column_id === columnId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }
 
-  async function addColumn() {
-    const name = prompt('Nome da nova coluna:');
-    if (!name) return;
-    const position = columns.length ? Math.max(...columns.map(c => c.position)) + 1 : 0;
-    const { error } = await supabase.from('kanban_columns').insert({ project_id: projectId, name, position });
-    if (error) { alert('Erro ao criar coluna: ' + error.message); return; }
-    showToast('Coluna criada');
-    load();
+  function openAddColumnPrompt() {
+    setTextPromptConfig({
+      title: 'Nova coluna',
+      label: 'Nome da coluna',
+      initialValue: '',
+      confirmLabel: 'Criar',
+      onConfirm: async (value) => {
+        setTextPromptConfig(null);
+        const position = columns.length ? Math.max(...columns.map(c => c.position)) + 1 : 0;
+        const { error } = await supabase.from('kanban_columns').insert({ project_id: projectId, name: value, position });
+        if (error) { alert('Erro ao criar coluna: ' + error.message); return; }
+        showToast('Coluna criada');
+        load();
+      },
+    });
   }
 
   async function deleteColumn(col) {
     if (versions.some(v => v.column_id === col.id)) { alert('Mova ou exclua os itens dessa coluna antes de excluí-la.'); return; }
-    if (!confirm('Excluir esta coluna?')) return;
-    const { error } = await supabase.from('kanban_columns').delete().eq('id', col.id);
+    const { error } = await supabase.from('kanban_columns').update({ deleted_at: new Date().toISOString() }).eq('id', col.id);
     if (error) { alert('Erro ao excluir coluna: ' + error.message); return; }
-    showToast('Coluna excluída');
+    showToast('Coluna excluída', {
+      actionLabel: 'Desfazer',
+      onAction: async () => {
+        await supabase.from('kanban_columns').update({ deleted_at: null }).eq('id', col.id);
+        load();
+      },
+    });
     load();
   }
 
@@ -189,7 +217,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
     <div>
       <div className="section-header">
         <h3>Quadro</h3>
-        <button className="primary small" onClick={addColumn}>+ Nova Coluna</button>
+        <button className="primary small" onClick={openAddColumnPrompt}>+ Nova Coluna</button>
       </div>
 
       {columns.length === 0 ? (
@@ -205,7 +233,14 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
                     <button className="icon-btn" disabled={idx === 0} onClick={() => moveColumn(col, 'left')} aria-label="Mover coluna para a esquerda">←</button>
                     <span className="col-name" onClick={() => setSettingsColumn(col)} title="Clique para configurar esta coluna">
                       {col.color && <span className="col-color-dot" style={{ background: col.color }} />}
-                      {col.is_version_column && <span className="version-column-badge" title="Quadro de versão">🔢</span>}
+                      {col.is_version_column && (
+                        <button
+                          type="button"
+                          className="icon-btn version-column-badge-btn"
+                          title={versionProgressTooltip(versionProgress)}
+                          onClick={e => { e.stopPropagation(); onOpenVersionModal?.(); }}
+                        >🔢</button>
+                      )}
                       {col.name} <span className="col-count">({items.length})</span>
                     </span>
                     <button className="icon-btn" disabled={idx === sortedColumns.length - 1} onClick={() => moveColumn(col, 'right')} aria-label="Mover coluna para a direita">→</button>
@@ -241,6 +276,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
                         {renderAttachmentsPreview(v.attachments)}
                         <strong>{v.title}</strong>
                         <small>{formatDate(v.change_date)} · {v.requester_name}</small>
+                        {v.assignee_name && <small className="assignee-line">👤 {v.assignee_name}</small>}
                         <p>{v.description || ''}</p>
                       </div>
                     );
@@ -271,6 +307,17 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
           column={settingsColumn}
           onClose={() => setSettingsColumn(null)}
           onSaved={() => { setSettingsColumn(null); load(); }}
+        />
+      )}
+
+      {textPromptConfig && (
+        <TextPromptModal
+          title={textPromptConfig.title}
+          label={textPromptConfig.label}
+          initialValue={textPromptConfig.initialValue}
+          confirmLabel={textPromptConfig.confirmLabel}
+          onConfirm={textPromptConfig.onConfirm}
+          onClose={() => setTextPromptConfig(null)}
         />
       )}
     </div>

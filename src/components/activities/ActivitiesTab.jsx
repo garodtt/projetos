@@ -40,6 +40,7 @@ export default function ActivitiesTab({ projectId, projectName, onActivityConver
       .from('activities')
       .select('*, attachments!activity_id(*)')
       .eq('project_id', projectId)
+      .is('deleted_at', null)
       .order('activity_date', { ascending: false });
     if (error) { alert('Erro ao carregar atividades: ' + error.message); setLoading(false); return; }
     setActivities(data);

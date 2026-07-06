@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { DRAWIO_EMBED_URL, BLANK_DIAGRAM_XML } from '../../constants';
+import { invertSvgDataUri } from '../../utils/svgColor';
 import { useToast } from '../Toast';
 
 function safeFilename(name) {
@@ -24,8 +25,14 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
   const [previewSvg, setPreviewSvg] = useState(diagram?.diagram_svg || '');
   const [pendingXml, setPendingXml] = useState(diagram?.diagram_xml || '');
   const [zoom, setZoom] = useState(1);
+  const [invertColors, setInvertColors] = useState(false);
   const iframeRef = useRef(null);
   const titleInputRef = useRef(null);
+
+  const displaySvg = useMemo(
+    () => (invertColors && previewSvg ? invertSvgDataUri(previewSvg) : previewSvg),
+    [previewSvg, invertColors]
+  );
 
   useEffect(() => {
     if (mode !== 'edit') return;
@@ -92,21 +99,27 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
 
   async function handleDelete() {
     if (!currentId) return;
-    if (!confirm('Excluir este diagrama?')) return;
-    const { error } = await supabase.from('panel_items').delete().eq('id', currentId);
+    const idToDelete = currentId;
+    const { error } = await supabase.from('panel_items').update({ deleted_at: new Date().toISOString() }).eq('id', idToDelete);
     if (error) { alert('Erro ao excluir diagrama: ' + error.message); return; }
-    showToast('Diagrama excluído');
+    showToast('Diagrama excluído', {
+      actionLabel: 'Desfazer',
+      onAction: async () => {
+        await supabase.from('panel_items').update({ deleted_at: null }).eq('id', idToDelete);
+        onSaved();
+      },
+    });
     onSaved();
     onClose();
   }
 
   function handleDownloadSvg() {
-    if (!previewSvg) { alert('Não há diagrama pra exportar ainda.'); return; }
-    downloadDataUri(previewSvg, safeFilename(title) + '.svg');
+    if (!displaySvg) { alert('Não há diagrama pra exportar ainda.'); return; }
+    downloadDataUri(displaySvg, safeFilename(title) + '.svg');
   }
 
   function handleDownloadPng() {
-    if (!previewSvg) { alert('Não há diagrama pra exportar ainda.'); return; }
+    if (!displaySvg) { alert('Não há diagrama pra exportar ainda.'); return; }
     const img = new Image();
     img.onload = () => {
       const scale = 2;
@@ -120,7 +133,7 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
       downloadDataUri(canvas.toDataURL('image/png'), safeFilename(title) + '.png');
     };
     img.onerror = () => alert('Erro ao gerar PNG. Tente exportar como SVG.');
-    img.src = previewSvg;
+    img.src = displaySvg;
   }
 
   return (
@@ -138,6 +151,13 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
             <span>{Math.round(zoom * 100)}%</span>
             <button type="button" className="secondary small" onClick={() => setZoom(z => Math.min(2.5, +(z + 0.25).toFixed(2)))}>+</button>
             <button type="button" className="secondary small" onClick={() => setZoom(1)}>Ajustar</button>
+            <button
+              type="button"
+              className={'secondary small' + (invertColors ? ' active-toggle' : '')}
+              onClick={() => setInvertColors(v => !v)}
+            >
+              🔁 Inverter cores
+            </button>
             <span className="toolbar-divider" />
             <button type="button" className="secondary small" onClick={handleDownloadPng}>⬇ PNG</button>
             <button type="button" className="secondary small" onClick={handleDownloadSvg}>⬇ SVG</button>
@@ -147,8 +167,8 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
         <div className={'diagram-canvas-wrap' + (mode === 'edit' ? ' is-editing' : '')}>
           {mode === 'edit' ? (
             <iframe ref={iframeRef} className="drawio-frame" src={DRAWIO_EMBED_URL} title="Editor de diagrama" />
-          ) : previewSvg ? (
-            <img className="diagram-canvas" style={{ transform: `scale(${zoom})` }} src={previewSvg} alt="" />
+          ) : displaySvg ? (
+            <img className="diagram-canvas" style={{ transform: `scale(${zoom})` }} src={displaySvg} alt="" />
           ) : (
             <p className="empty-state">Diagrama vazio.</p>
           )}
