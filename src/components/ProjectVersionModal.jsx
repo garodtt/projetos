@@ -6,6 +6,11 @@ import { buildVersionLabel } from '../utils/versioning';
 
 const LEVEL_LABEL = { grande: 'Grande', media: 'Média', minima: 'Mínima' };
 
+function inputWidthCh(value) {
+  const len = String(value ?? '').length;
+  return Math.max(2, len + 1) + 'ch';
+}
+
 export default function ProjectVersionModal({ projectId, onClose }) {
   const showToast = useToast();
   const [project, setProject] = useState(null);
@@ -99,6 +104,7 @@ export default function ProjectVersionModal({ projectId, onClose }) {
                   min="1"
                   value={thresholds[level]}
                   onChange={e => setThresholds(t => ({ ...t, [level]: e.target.value }))}
+                  style={{ width: inputWidthCh(thresholds[level]) }}
                 />
               </div>
               <small>itens acumulados / necessários</small>
