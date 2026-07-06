@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_TAG_LABEL } from '../../constants';
 import { formatDate } from '../../utils/format';
 import { isImageFile, fileIcon } from '../../utils/files';
+import { exportMeetingsPdf } from '../../utils/exportPdf';
 import ActivityModal from './ActivityModal';
 import Spinner from '../Spinner';
 
@@ -27,7 +28,7 @@ function renderAttachmentsPreview(attachments) {
   return <span className="attachment-chip attachment-chip-count">📎 {attachments.length} anexos</span>;
 }
 
-export default function ActivitiesTab({ projectId, onActivityConvertedToTask, onDataChanged, onTaskCreatedElsewhere }) {
+export default function ActivitiesTab({ projectId, projectName, onActivityConvertedToTask, onDataChanged, onTaskCreatedElsewhere }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -58,6 +59,10 @@ export default function ActivitiesTab({ projectId, onActivityConvertedToTask, on
     if (isNewMelhoriaOuCorrecao) onActivityConvertedToTask();
   }
 
+  function handleExportAgenda() {
+    exportMeetingsPdf(projectName, activities);
+  }
+
   return (
     <div>
       <div className="section-header">
@@ -68,7 +73,10 @@ export default function ActivitiesTab({ projectId, onActivityConvertedToTask, on
             </button>
           ))}
         </div>
-        <button className="primary small" onClick={openNew}>+ Nova Atividade</button>
+        <div className="section-header-buttons">
+          <button className="secondary small" onClick={handleExportAgenda}>📄 Exportar Agenda (PDF)</button>
+          <button className="primary small" onClick={openNew}>+ Nova Atividade</button>
+        </div>
       </div>
 
       {loading ? (

@@ -141,6 +141,7 @@ export default function App() {
             <div className={'panel' + (activeTab === 'activities' ? ' active' : '')}>
               <ActivitiesTab
                 projectId={currentProjectId}
+                projectName={currentProject.name}
                 onActivityConvertedToTask={() => setActiveTab('kanban')}
                 onDataChanged={loadPendingCounts}
                 onTaskCreatedElsewhere={bumpTaskRefresh}

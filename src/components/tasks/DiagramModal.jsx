@@ -3,6 +3,19 @@ import { supabase } from '../../lib/supabaseClient';
 import { DRAWIO_EMBED_URL, BLANK_DIAGRAM_XML } from '../../constants';
 import { useToast } from '../Toast';
 
+function safeFilename(name) {
+  return (name || 'diagrama').trim().replace(/[\\/:*?"<>|]+/g, '-') || 'diagrama';
+}
+
+function downloadDataUri(dataUri, filename) {
+  const a = document.createElement('a');
+  a.href = dataUri;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40, zIndex = 1, onClose, onSaved }) {
   const showToast = useToast();
   const [mode, setMode] = useState(diagram ? 'view' : 'edit');
@@ -12,6 +25,7 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
   const [pendingXml, setPendingXml] = useState(diagram?.diagram_xml || '');
   const [zoom, setZoom] = useState(1);
   const iframeRef = useRef(null);
+  const titleInputRef = useRef(null);
 
   useEffect(() => {
     if (mode !== 'edit') return;
@@ -38,9 +52,17 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify(msg), '*');
   }
 
+  function requestExport() {
+    if (iframeRef.current) iframeRef.current.blur();
+    setTimeout(() => {
+      postToDrawio({ action: 'export', format: 'xmlsvg', spin: 'Salvando...' });
+    }, 150);
+  }
+
   async function handleExport(msg) {
     const wasNew = !currentId;
-    const finalTitle = title.trim() || 'Sem título';
+    const typedTitle = titleInputRef.current ? titleInputRef.current.value : title;
+    const finalTitle = (typedTitle || '').trim() || 'Sem título';
     const payload = { title: finalTitle, diagram_xml: msg.xml || '', diagram_svg: msg.data || '' };
 
     let result;
@@ -55,6 +77,7 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
     if (result.error) { alert('Erro ao salvar diagrama: ' + result.error.message); return; }
 
     setCurrentId(result.data.id);
+    setTitle(result.data.title);
     setPreviewSvg(result.data.diagram_svg);
     setPendingXml(result.data.diagram_xml);
     setMode('view');
@@ -77,13 +100,36 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
     onClose();
   }
 
+  function handleDownloadSvg() {
+    if (!previewSvg) { alert('Não há diagrama pra exportar ainda.'); return; }
+    downloadDataUri(previewSvg, safeFilename(title) + '.svg');
+  }
+
+  function handleDownloadPng() {
+    if (!previewSvg) { alert('Não há diagrama pra exportar ainda.'); return; }
+    const img = new Image();
+    img.onload = () => {
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      downloadDataUri(canvas.toDataURL('image/png'), safeFilename(title) + '.png');
+    };
+    img.onerror = () => alert('Erro ao gerar PNG. Tente exportar como SVG.');
+    img.src = previewSvg;
+  }
+
   return (
     <div className="overlay">
       <div className="modal wide">
         {mode === 'view' ? (
           <h3 style={{ margin: '0 0 10px' }}>{title || 'Sem título'}</h3>
         ) : (
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título do diagrama" />
+          <input ref={titleInputRef} value={title} onChange={e => setTitle(e.target.value)} placeholder="Título do diagrama" />
         )}
 
         {mode === 'view' && (
@@ -92,6 +138,9 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
             <span>{Math.round(zoom * 100)}%</span>
             <button type="button" className="secondary small" onClick={() => setZoom(z => Math.min(2.5, +(z + 0.25).toFixed(2)))}>+</button>
             <button type="button" className="secondary small" onClick={() => setZoom(1)}>Ajustar</button>
+            <span className="toolbar-divider" />
+            <button type="button" className="secondary small" onClick={handleDownloadPng}>⬇ PNG</button>
+            <button type="button" className="secondary small" onClick={handleDownloadSvg}>⬇ SVG</button>
           </div>
         )}
 
@@ -109,7 +158,7 @@ export default function DiagramModal({ projectId, diagram, posX = 40, posY = 40,
           <button className="secondary" onClick={handleCancel}>{mode === 'edit' ? 'Cancelar' : 'Fechar'}</button>
           {mode === 'view' && currentId && <button className="danger push-left" onClick={handleDelete}>Excluir</button>}
           {mode === 'view' && currentId && <button className="secondary" onClick={() => setMode('edit')}>Editar</button>}
-          {mode === 'edit' && <button className="primary" onClick={() => postToDrawio({ action: 'export', format: 'xmlsvg', spin: 'Salvando...' })}>Salvar</button>}
+          {mode === 'edit' && <button className="primary" onClick={requestExport}>Salvar</button>}
         </div>
       </div>
     </div>
