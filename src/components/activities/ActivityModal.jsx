@@ -3,12 +3,21 @@ import { supabase } from '../../lib/supabaseClient';
 import { ACTIVITY_LABELS, ACTIVITY_TAG_LABEL, UNASSIGNED_COLUMN_NAME, COMPLEXITY_OPTIONS } from '../../constants';
 import { useToast } from '../Toast';
 import AttachmentsField from '../AttachmentsField';
+import ParticipantsField from '../ParticipantsField';
+
+function parseParticipants(personName) {
+  if (!personName) return [];
+  return personName.split(',').map(p => p.trim()).filter(Boolean);
+}
 
 export default function ActivityModal({ projectId, activity, onClose, onSaved, onDataChanged, onTaskCreatedElsewhere }) {
   const showToast = useToast();
   const isEditing = Boolean(activity);
   const [type, setType] = useState(activity?.type || 'reuniao');
-  const [personName, setPersonName] = useState(activity?.person_name || '');
+  const [personName, setPersonName] = useState(activity?.type && activity.type !== 'reuniao' ? (activity.person_name || '') : '');
+  const [participants, setParticipants] = useState(() =>
+    !activity || activity.type === 'reuniao' ? parseParticipants(activity?.person_name) : []
+  );
   const [date, setDate] = useState(activity?.activity_date || '');
   const [description, setDescription] = useState(activity?.description || '');
   const [status, setStatus] = useState(activity?.status || 'pendente');
@@ -107,16 +116,22 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
   }
 
   async function handleSave() {
-    const person_name = personName.trim();
+    const finalPersonName = type === 'reuniao'
+      ? participants.map(p => p.trim()).filter(Boolean).join(', ')
+      : personName.trim();
     const activity_date = date || new Date().toISOString().slice(0, 10);
     const desc = description.trim();
     const finalTitle = title.trim();
-    if (!person_name || !desc) { alert('Preencha o nome e a descrição.'); return; }
+
+    if (!finalPersonName || !desc) {
+      alert(type === 'reuniao' ? 'Adicione ao menos um participante e preencha a descrição.' : 'Preencha o nome e a descrição.');
+      return;
+    }
     if (type !== 'reuniao' && !finalTitle) { alert('Informe um título.'); return; }
 
     const payload = {
       type,
-      person_name,
+      person_name: finalPersonName,
       activity_date,
       description: desc,
       status: type === 'reuniao' ? null : status,
@@ -187,16 +202,25 @@ export default function ActivityModal({ projectId, activity, onClose, onSaved, o
           </>
         )}
 
-        <div className="row">
-          <div>
-            <label>{ACTIVITY_LABELS[type].person}</label>
-            <input value={personName} onChange={e => setPersonName(e.target.value)} placeholder="Nome" />
-          </div>
-          <div>
+        {type === 'reuniao' ? (
+          <>
+            <label>{ACTIVITY_LABELS.reuniao.person}</label>
+            <ParticipantsField participants={participants} onChange={setParticipants} />
             <label>Data</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </>
+        ) : (
+          <div className="row">
+            <div>
+              <label>{ACTIVITY_LABELS[type].person}</label>
+              <input value={personName} onChange={e => setPersonName(e.target.value)} placeholder="Nome" />
+            </div>
+            <div>
+              <label>Data</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
           </div>
-        </div>
+        )}
 
         {type !== 'reuniao' && (
           <div className="row">

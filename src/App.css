@@ -426,3 +426,10 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .version-column-badge-btn { padding: 0 4px; font-size: 12px; }
 .assignee-line { display: block; color: #6b7280; }
+
+.participants-list { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.participant-chip { display:inline-flex; align-items:center; gap:6px; background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:14px; font-size:13px; }
+.participant-chip button { background:none; border:none; color:#3730a3; cursor:pointer; font-size:11px; padding:0; line-height:1; }
+.participant-chip button:hover { color:#1e1b4b; }
+.participants-input-row { display:flex; gap:6px; margin-bottom:10px; }
+.participants-input-row input { margin-bottom:0; flex:1; }
