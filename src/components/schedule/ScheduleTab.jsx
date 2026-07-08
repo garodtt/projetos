@@ -7,9 +7,9 @@ import GanttChart from './GanttChart';
 import NewScheduleTaskModal from './NewScheduleTaskModal';
 import TaskResourcesModal from './TaskResourcesModal';
 import HolidaySettingsModal from './HolidaySettingsModal';
-import { computeDateRange, addDaysToDate, daysBetweenDates } from '../../utils/schedule';
+import { computeDateRange, addDaysToDate, daysBetweenDates, hasCircularDependency } from '../../utils/schedule';
 import { formatDate } from '../../utils/format';
-import { computeEndDateWithCalendar, fetchScheduleCalendar, isBusinessDay, snapToNextBusinessDay } from '../../utils/businessDays';
+import { computeEndDateWithCalendar, fetchScheduleCalendar, resolveBusinessDayChoice, snapToNextBusinessDay } from '../../utils/businessDays';
 import { checkConflictsForTaskDateChange } from '../../utils/resources';
 
 const TABLE_WIDTH_STORAGE_KEY = 'cronograma_table_width';
@@ -177,14 +177,13 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
     const updates = new Map();
     updates.set(rootTaskId, rootSelfChanges);
 
-    const newEndDate = rootSelfChanges.end_date;
-    const delta = daysBetweenDates(oldEndDate, newEndDate);
+    const initialDelta = daysBetweenDates(oldEndDate, rootSelfChanges.end_date);
 
-    if (delta !== 0) {
+    if (initialDelta !== 0) {
       const visited = new Set([rootTaskId]);
-      const queue = [rootTaskId];
+      const queue = [{ id: rootTaskId, delta: initialDelta }];
       while (queue.length) {
-        const currentId = queue.shift();
+        const { id: currentId, delta } = queue.shift();
         const successorIds = dependencies
           .filter(d => d.predecessor_id === currentId)
           .map(d => d.task_id);
@@ -194,10 +193,21 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
           const succTask = taskById.get(succId);
           if (!succTask) continue;
           const base = updates.get(succId) || succTask;
-          const shiftedStart = addDaysToDate(base.start_date, delta);
-          const shiftedEnd = addDaysToDate(base.end_date, delta);
+
+          // Desloca a data corrida como antes, mas se cair num dia não-útil
+          // empurra pro próximo — e recalcula o término pela duração da
+          // própria tarefa (em vez de só somar o mesmo delta), pra start/end
+          // não saírem de sincronia com duration_value/duration_unit quando
+          // há um feriado/fim de semana no meio do caminho.
+          const rawShiftedStart = addDaysToDate(base.start_date, delta);
+          const shiftedStart = snapToNextBusinessDay(rawShiftedStart, calendar);
+          const shiftedEnd = computeEndDateWithCalendar(shiftedStart, succTask.duration_value, succTask.duration_unit, calendar);
+
+          if (shiftedStart === base.start_date && shiftedEnd === base.end_date) continue;
+
           updates.set(succId, { start_date: shiftedStart, end_date: shiftedEnd });
-          queue.push(succId);
+          const succDelta = daysBetweenDates(base.end_date, shiftedEnd);
+          queue.push({ id: succId, delta: succDelta });
         }
       }
     }
@@ -260,15 +270,7 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
   }
 
   function handleStartDateChange(task, value) {
-    let finalValue = value;
-    if (!isBusinessDay(value, calendar)) {
-      const snapped = snapToNextBusinessDay(value, calendar);
-      const proceed = confirm(
-        formatDate(value) + ' cai num sábado, domingo ou feriado.\n\n' +
-        'Mover o início para o próximo dia útil (' + formatDate(snapped) + ')?'
-      );
-      finalValue = proceed ? snapped : value;
-    }
+    const finalValue = resolveBusinessDayChoice(value, calendar);
     const newEnd = computeEndDateWithCalendar(finalValue, task.duration_value, task.duration_unit, calendar);
     commitTaskDatesWithCascade(task.id, { start_date: finalValue, end_date: newEnd }, task.end_date);
   }
@@ -279,12 +281,22 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
   }
 
   function handleActualStartChange(task, value) {
-    updateLocalTask(task.id, { actual_start_date: value || null });
-    persistTask(task.id, { actual_start_date: value || null });
+    const newValue = value || null;
+    if (newValue && task.actual_end_date && newValue > task.actual_end_date) {
+      alert('A data real de início (' + formatDate(newValue) + ') não pode ser depois da data real de término já registrada (' + formatDate(task.actual_end_date) + ').');
+      return;
+    }
+    updateLocalTask(task.id, { actual_start_date: newValue });
+    persistTask(task.id, { actual_start_date: newValue });
   }
   function handleActualEndChange(task, value) {
-    updateLocalTask(task.id, { actual_end_date: value || null });
-    persistTask(task.id, { actual_end_date: value || null });
+    const newValue = value || null;
+    if (newValue && task.actual_start_date && newValue < task.actual_start_date) {
+      alert('A data real de término (' + formatDate(newValue) + ') não pode ser antes da data real de início já registrada (' + formatDate(task.actual_start_date) + ').');
+      return;
+    }
+    updateLocalTask(task.id, { actual_end_date: newValue });
+    persistTask(task.id, { actual_end_date: newValue });
   }
 
   async function indentTask(task) {
@@ -341,6 +353,35 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
     });
     if (invalid.length) {
       alert('Número(s) inválido(s) de predecessora: ' + invalid.join(', ') + '. Use o ID mostrado na primeira coluna.');
+    }
+
+    // Item 3 — não deixa criar dependência circular (direta ou indireta).
+    if (hasCircularDependency(task.id, validIds, dependencies)) {
+      alert('Essa combinação criaria uma dependência circular (uma tarefa não pode depender, direta ou indiretamente, dela mesma). Nenhuma predecessora foi salva — ajuste os números e tente de novo.');
+      setPredecessorDrafts(prev => {
+        const next = { ...prev };
+        delete next[task.id];
+        return next;
+      });
+      return;
+    }
+
+    // Item 2 — avisa se a tarefa começa antes do término de alguma
+    // predecessora que está sendo vinculada agora, e oferece ajustar.
+    const violating = validIds
+      .map(id => tasks.find(t => t.id === id))
+      .filter(pred => pred && pred.end_date > task.start_date);
+
+    if (violating.length) {
+      const latestEnd = violating.reduce((max, p) => (p.end_date > max ? p.end_date : max), violating[0].end_date);
+      const proceed = confirm(
+        `"${task.name}" começa em ${formatDate(task.start_date)}, antes do término de ${violating.length > 1 ? 'predecessoras que você está vinculando' : 'uma predecessora que você está vinculando'} (a mais tardia termina em ${formatDate(latestEnd)}).\n\n` +
+        `Mover o início de "${task.name}" para ${formatDate(latestEnd)}?`
+      );
+      if (proceed) {
+        const newEnd = computeEndDateWithCalendar(latestEnd, task.duration_value, task.duration_unit, calendar);
+        await commitTaskDatesWithCascade(task.id, { start_date: latestEnd, end_date: newEnd }, task.end_date);
+      }
     }
 
     await supabase.from('schedule_dependencies').delete().eq('task_id', task.id);

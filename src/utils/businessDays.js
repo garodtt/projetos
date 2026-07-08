@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { addDaysToDate, getDayOfWeek } from './schedule';
+import { formatDate } from './format';
 
 function computeEasterSunday(year) {
   const a = year % 19;
@@ -86,6 +87,16 @@ export function snapToNextBusinessDay(dateStr, calendar) {
     current = addDaysToDate(current, 1);
   }
   return current;
+}
+
+export function resolveBusinessDayChoice(dateStr, calendar) {
+  if (isBusinessDay(dateStr, calendar)) return dateStr;
+  const snapped = snapToNextBusinessDay(dateStr, calendar);
+  const proceed = confirm(
+    formatDate(dateStr) + ' cai num sábado, domingo ou feriado.\n\n' +
+    'Mover o início para o próximo dia útil (' + formatDate(snapped) + ')?'
+  );
+  return proceed ? snapped : dateStr;
 }
 
 export function durationToCalendarDays(value, unit) {

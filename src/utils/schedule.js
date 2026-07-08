@@ -55,3 +55,24 @@ export function computeDateRange(tasks) {
   const totalDays = Math.max(20, daysBetweenDates(rangeStart, rangeEndPadded));
   return { rangeStart, totalDays };
 }
+
+export function hasCircularDependency(taskId, newPredecessorIds, existingDependencies) {
+  const predecessorsOf = new Map();
+  existingDependencies.forEach(d => {
+    if (!predecessorsOf.has(d.task_id)) predecessorsOf.set(d.task_id, []);
+    predecessorsOf.get(d.task_id).push(d.predecessor_id);
+  });
+  predecessorsOf.set(taskId, newPredecessorIds);
+
+  const visited = new Set();
+  const stack = [...newPredecessorIds];
+  while (stack.length) {
+    const current = stack.pop();
+    if (current === taskId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    const preds = predecessorsOf.get(current) || [];
+    stack.push(...preds);
+  }
+  return false;
+}
