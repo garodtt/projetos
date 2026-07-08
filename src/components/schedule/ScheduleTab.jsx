@@ -8,7 +8,8 @@ import NewScheduleTaskModal from './NewScheduleTaskModal';
 import TaskResourcesModal from './TaskResourcesModal';
 import HolidaySettingsModal from './HolidaySettingsModal';
 import { computeDateRange, addDaysToDate, daysBetweenDates } from '../../utils/schedule';
-import { computeEndDateWithCalendar, fetchScheduleCalendar } from '../../utils/businessDays';
+import { formatDate } from '../../utils/format';
+import { computeEndDateWithCalendar, fetchScheduleCalendar, snapToNextBusinessDay } from '../../utils/businessDays';
 import { checkConflictsForTaskDateChange } from '../../utils/resources';
 
 const TABLE_WIDTH_STORAGE_KEY = 'cronograma_table_width';
@@ -219,12 +220,9 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
       showToast('Datas ajustadas em ' + (entries.length - 1) + ' tarefa(s) dependente(s)');
     }
 
-    const conflictChecks = await Promise.all(entries.map(async ([id, changes]) => {
-      const task = tasks.find(t => t.id === id);
-      const newStart = changes.start_date || task?.start_date;
-      const newEnd = changes.end_date || task?.end_date;
-      return checkConflictsForTaskDateChange(id, newStart, newEnd);
-    }));
+    // As datas já foram salvas acima — relemos do banco dentro da checagem,
+    // então não precisa (e não deve) passar nenhum valor local aqui.
+    const conflictChecks = await Promise.all(entries.map(([id]) => checkConflictsForTaskDateChange(id)));
     const allConflicts = conflictChecks.flat();
     if (allConflicts.length) {
       const seen = new Set();
@@ -262,8 +260,12 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
   }
 
   function handleStartDateChange(task, value) {
-    const newEnd = computeEndDateWithCalendar(value, task.duration_value, task.duration_unit, calendar);
-    commitTaskDatesWithCascade(task.id, { start_date: value, end_date: newEnd }, task.end_date);
+    const snapped = snapToNextBusinessDay(value, calendar);
+    if (snapped !== value) {
+      showToast('Início ajustado para o próximo dia útil (' + formatDate(snapped) + ')');
+    }
+    const newEnd = computeEndDateWithCalendar(snapped, task.duration_value, task.duration_unit, calendar);
+    commitTaskDatesWithCascade(task.id, { start_date: snapped, end_date: newEnd }, task.end_date);
   }
 
   function handleColorChange(task, color) {

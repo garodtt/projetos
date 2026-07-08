@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 import ResourcePicker from '../ResourcePicker';
-import { computeEndDateWithCalendar } from '../../utils/businessDays';
+import { computeEndDateWithCalendar, snapToNextBusinessDay } from '../../utils/businessDays';
 import { findConflictsForAssignment } from '../../utils/resources';
+import { formatDate } from '../../utils/format';
 
 const DURATION_UNITS = [
   { value: 'horas', label: 'Horas' },
@@ -23,11 +24,19 @@ function buildConflictLines(allConflicts) {
 export default function NewScheduleTaskModal({ projectId, nextPosition, calendar, onClose, onCreated }) {
   const showToast = useToast();
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => snapToNextBusinessDay(new Date().toISOString().slice(0, 10), calendar));
   const [durationValue, setDurationValue] = useState(1);
   const [durationUnit, setDurationUnit] = useState('dias');
   const [assignments, setAssignments] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  function handleStartDateChange(value) {
+    const snapped = snapToNextBusinessDay(value, calendar);
+    if (snapped !== value) {
+      showToast('Início ajustado para o próximo dia útil (' + formatDate(snapped) + ')');
+    }
+    setStartDate(snapped);
+  }
 
   async function handleCreate() {
     const finalName = name.trim() || 'Nova tarefa';
@@ -70,7 +79,7 @@ export default function NewScheduleTaskModal({ projectId, nextPosition, calendar
         <div className="row">
           <div>
             <label>Início</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <input type="date" value={startDate} onChange={e => handleStartDateChange(e.target.value)} />
           </div>
           <div>
             <label>Duração</label>

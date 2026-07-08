@@ -80,6 +80,14 @@ export function addBusinessDays(startDate, n, calendar) {
   return current;
 }
 
+export function snapToNextBusinessDay(dateStr, calendar) {
+  let current = dateStr;
+  while (!isBusinessDay(current, calendar)) {
+    current = addDaysToDate(current, 1);
+  }
+  return current;
+}
+
 export function durationToCalendarDays(value, unit) {
   const n = Number(value) || 0;
   if (unit === 'semanas') return n * 7;

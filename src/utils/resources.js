@@ -22,6 +22,13 @@ export async function createResource(name, role, dailyCapacityHours) {
   return data;
 }
 
+// Duas tarefas [startA, endA) e [startB, endB) só se sobrepõem se cada uma
+// começar ANTES do término da outra — término é o dia seguinte ao último
+// dia ocupado, não um dia que a tarefa realmente usa.
+function rangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && startB < endA;
+}
+
 export async function findConflictsForAssignment(resourceId, taskStart, taskEnd, proposedHours, excludeTaskId) {
   const { data: resourceRow } = await supabase.from('resources').select('daily_capacity_hours, name').eq('id', resourceId).single();
   const dailyCapacity = resourceRow?.daily_capacity_hours || 8;
@@ -37,7 +44,7 @@ export async function findConflictsForAssignment(resourceId, taskStart, taskEnd,
     const task = row.schedule_tasks;
     if (!task || task.deleted_at) return false;
     if (excludeTaskId && task.id === excludeTaskId) return false;
-    return taskStart <= task.end_date && task.start_date <= taskEnd;
+    return rangesOverlap(taskStart, taskEnd, task.start_date, task.end_date);
   });
 
   const existingTotal = overlapping.reduce((sum, row) => sum + row.hours_per_day, 0);
@@ -55,13 +62,20 @@ export async function findConflictsForAssignment(resourceId, taskStart, taskEnd,
   }));
 }
 
-export async function checkConflictsForTaskDateChange(taskId, newStart, newEnd) {
+// Não recebe mais as datas de fora — relê direto do banco, que já foi
+// atualizado antes desta função ser chamada. Evita depender de qualquer
+// valor local que possa estar desatualizado no momento da checagem.
+export async function checkConflictsForTaskDateChange(taskId) {
+  const { data: taskRow, error: taskError } = await supabase
+    .from('schedule_tasks').select('start_date, end_date').eq('id', taskId).single();
+  if (taskError || !taskRow) return [];
+
   const { data: myAssignments, error } = await supabase
     .from('schedule_task_resources').select('resource_id, hours_per_day').eq('task_id', taskId);
   if (error || !myAssignments || !myAssignments.length) return [];
 
   const results = await Promise.all(
-    myAssignments.map(a => findConflictsForAssignment(a.resource_id, newStart, newEnd, a.hours_per_day, taskId))
+    myAssignments.map(a => findConflictsForAssignment(a.resource_id, taskRow.start_date, taskRow.end_date, a.hours_per_day, taskId))
   );
   return results.flat();
 }
@@ -89,7 +103,7 @@ export async function computeAllConflicts() {
       const ta = r.schedule_tasks;
       const overlapping = resourceRows.filter(other => {
         const tb = other.schedule_tasks;
-        return ta.start_date <= tb.end_date && tb.start_date <= ta.end_date;
+        return rangesOverlap(ta.start_date, ta.end_date, tb.start_date, tb.end_date);
       });
       const total = overlapping.reduce((sum, o) => sum + o.hours_per_day, 0);
       if (total <= capacity) return;
