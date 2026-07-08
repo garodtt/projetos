@@ -89,6 +89,10 @@ export function snapToNextBusinessDay(dateStr, calendar) {
   return current;
 }
 
+// Usada nos dois pontos onde o usuário escolhe uma data de início (criar
+// tarefa e editar uma existente). Centraliza o texto do aviso e a decisão
+// de mover ou não, pra não ter duas versões da mesma pergunta divergindo
+// com o tempo.
 export function resolveBusinessDayChoice(dateStr, calendar) {
   if (isBusinessDay(dateStr, calendar)) return dateStr;
   const snapped = snapToNextBusinessDay(dateStr, calendar);
@@ -99,14 +103,69 @@ export function resolveBusinessDayChoice(dateStr, calendar) {
   return proceed ? snapped : dateStr;
 }
 
-export function durationToCalendarDays(value, unit) {
+export function durationToCalendarDays(value, unit, calendar) {
   const n = Number(value) || 0;
   if (unit === 'semanas') return n * 7;
-  if (unit === 'horas') return Math.max(1, Math.ceil(n / 24));
+  if (unit === 'horas') {
+    const dailyHours = calendar?.settings?.daily_working_hours || 8;
+    return Math.max(1, Math.ceil(n / dailyHours));
+  }
   return n;
 }
 
 export function computeEndDateWithCalendar(startDate, durationValue, durationUnit, calendar) {
-  const days = durationToCalendarDays(durationValue, durationUnit);
+  const days = durationToCalendarDays(durationValue, durationUnit, calendar);
   return addBusinessDays(startDate, days, calendar);
+}
+
+// Quando o Calendário muda (dia útil de sábado/domingo, feriados nacionais,
+// feriados personalizados), o Término de tarefas já existentes fica
+// desatualizado até alguém tocar nelas de novo. Isso recalcula o Término de
+// TODAS as tarefas (todos os projetos, já que o Calendário é global) a
+// partir do Início de cada uma, que não é alterado. Retorna quantas linhas
+// mudaram de fato.
+export async function recalculateAllScheduleEndDates(calendar) {
+  const { data: tasksData, error } = await supabase
+    .from('schedule_tasks')
+    .select('id, start_date, end_date, duration_value, duration_unit')
+    .is('deleted_at', null);
+  if (error) { console.error(error); return { updatedCount: 0 }; }
+  if (!tasksData || !tasksData.length) return { updatedCount: 0 };
+
+  const changed = tasksData
+    .map(t => ({ id: t.id, newEnd: computeEndDateWithCalendar(t.start_date, t.duration_value, t.duration_unit, calendar), oldEnd: t.end_date }))
+    .filter(t => t.newEnd !== t.oldEnd);
+  if (!changed.length) return { updatedCount: 0 };
+
+  const results = await Promise.all(
+    changed.map(t => supabase.from('schedule_tasks').update({ end_date: t.newEnd, updated_at: new Date().toISOString() }).eq('id', t.id))
+  );
+  const failed = results.find(r => r.error);
+  if (failed) console.error(failed.error);
+  return { updatedCount: changed.length };
+}
+
+// Depois de um recálculo em massa, algumas tarefas podem ter passado a
+// começar antes do término (+ atraso) de alguma predecessora — não
+// corrige isso automaticamente (evita mexer em datas de início escolhidas
+// pelo usuário sem perguntar), só lista pra revisão manual.
+export async function findDateOrderViolations() {
+  const [tasksRes, depsRes] = await Promise.all([
+    supabase.from('schedule_tasks').select('id, project_id, name, start_date, end_date, projects(name)').is('deleted_at', null),
+    supabase.from('schedule_dependencies').select('task_id, predecessor_id, lag_days'),
+  ]);
+  if (tasksRes.error || depsRes.error) return [];
+
+  const byId = new Map((tasksRes.data || []).map(t => [t.id, t]));
+  const violations = [];
+  (depsRes.data || []).forEach(d => {
+    const task = byId.get(d.task_id);
+    const pred = byId.get(d.predecessor_id);
+    if (!task || !pred) return;
+    const requiredStart = addDaysToDate(pred.end_date, d.lag_days || 0);
+    if (task.start_date < requiredStart) {
+      violations.push({ taskName: task.name, predName: pred.name, projectName: task.projects?.name });
+    }
+  });
+  return violations;
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 import Spinner from '../Spinner';
+import { fetchScheduleCalendar, recalculateAllScheduleEndDates, findDateOrderViolations } from '../../utils/businessDays';
 
 export default function HolidaySettingsModal({ onClose, onSaved }) {
   const showToast = useToast();
@@ -24,6 +25,23 @@ export default function HolidaySettingsModal({ onClose, onSaved }) {
 
   useEffect(() => { load(); }, [load]);
 
+  async function recalculateAndReport() {
+    const calendar = await fetchScheduleCalendar();
+    const { updatedCount } = await recalculateAllScheduleEndDates(calendar);
+    if (!updatedCount) return;
+    const violations = await findDateOrderViolations();
+    let msg = `Término recalculado em ${updatedCount} tarefa(s) do cronograma (todos os projetos), pra refletir a nova regra.`;
+    if (violations.length) {
+      const preview = violations
+        .slice(0, 8)
+        .map(v => '• ' + (v.projectName ? v.projectName + ' / ' : '') + v.taskName + ' (predecessora: ' + v.predName + ')')
+        .join('\n');
+      msg += `\n\n⚠ ${violations.length} tarefa(s) agora começam antes do término (+ atraso) de alguma predecessora e podem precisar de ajuste manual:\n${preview}`
+        + (violations.length > 8 ? `\n… e mais ${violations.length - 8}.` : '');
+    }
+    alert(msg);
+  }
+
   async function saveSettings() {
     const { error } = await supabase.from('schedule_settings').update({
       daily_working_hours: settings.daily_working_hours,
@@ -35,6 +53,7 @@ export default function HolidaySettingsModal({ onClose, onSaved }) {
     if (error) { alert('Erro ao salvar: ' + error.message); return; }
     showToast('Configurações salvas');
     onSaved();
+    await recalculateAndReport();
   }
 
   async function addHoliday() {
@@ -44,6 +63,7 @@ export default function HolidaySettingsModal({ onClose, onSaved }) {
     setNewDate(''); setNewLabel('');
     load();
     onSaved();
+    await recalculateAndReport();
   }
 
   async function removeHoliday(holiday) {
@@ -51,6 +71,7 @@ export default function HolidaySettingsModal({ onClose, onSaved }) {
     if (error) { alert('Erro ao remover feriado: ' + error.message); return; }
     load();
     onSaved();
+    await recalculateAndReport();
   }
 
   if (loading || !settings) {
@@ -62,7 +83,7 @@ export default function HolidaySettingsModal({ onClose, onSaved }) {
       <div className="modal wide">
         <h3>Calendário e dias úteis</h3>
         <p className="version-column-hint">
-          As três regras abaixo valem para <strong>todas</strong> as tarefas com duração em Dias ou Semanas.
+          As regras abaixo valem para <strong>todas</strong> as tarefas de <strong>todos os projetos</strong>, incluindo tarefas com duração em Horas, Dias ou Semanas.
         </p>
 
         <label className="checkbox-row">
@@ -78,12 +99,15 @@ export default function HolidaySettingsModal({ onClose, onSaved }) {
           Considerar feriados nacionais automaticamente (inclui Carnaval e Corpus Christi)
         </label>
 
-        <label>Horas/dia sugeridas ao cadastrar um novo recurso</label>
+        <label>Horas de trabalho por dia</label>
         <input
           type="number" min="1" step="0.5"
           value={settings.daily_working_hours}
           onChange={e => setSettings(s => ({ ...s, daily_working_hours: Number(e.target.value) || 8 }))}
         />
+        <p className="version-column-hint">
+          Usado para converter tarefas com duração em <strong>Horas</strong> para dias úteis (ex: com 8h/dia, uma tarefa de 16h dura 2 dias úteis), e como sugestão inicial ao cadastrar um recurso novo.
+        </p>
 
         <button className="secondary small" onClick={saveSettings}>Salvar configurações</button>
 

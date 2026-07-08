@@ -168,6 +168,7 @@ create table public.schedule_tasks (
   actual_end_date date,
   resource_names text,
   color text,
+  progress_percent integer not null default 0 check (progress_percent between 0 and 100),
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -182,6 +183,7 @@ create table public.schedule_dependencies (
   id uuid primary key default gen_random_uuid(),
   task_id uuid not null references public.schedule_tasks(id) on delete cascade,
   predecessor_id uuid not null references public.schedule_tasks(id) on delete cascade,
+  lag_days numeric not null default 0,
   created_at timestamptz not null default now(),
   unique (task_id, predecessor_id)
 );

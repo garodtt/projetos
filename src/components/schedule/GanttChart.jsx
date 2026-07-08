@@ -215,6 +215,20 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
                         style={{ left: seg.left, width: seg.width, ...colorStyle }}
                       />
                     ))}
+                    {t.progress_percent > 0 && (
+                      <div
+                        title={t.progress_percent + '% concluído'}
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: Math.min(100, t.progress_percent) + '%',
+                          background: 'rgba(0,0,0,0.3)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
                   </div>
                 )}
                 {actualBarPos && (

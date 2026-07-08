@@ -12,6 +12,7 @@ export default function CombinedScheduleTable({ tasks, projectColorById, project
           <th>Duração</th>
           <th>Início</th>
           <th>Término</th>
+          <th>Progresso</th>
           <th>Predecessoras</th>
           <th>Recursos</th>
         </tr>
@@ -32,6 +33,7 @@ export default function CombinedScheduleTable({ tasks, projectColorById, project
             <td>{task.duration_value} {DURATION_LABELS[task.duration_unit] || task.duration_unit}</td>
             <td>{formatDate(task.start_date)}</td>
             <td>{formatDate(task.end_date)}</td>
+            <td>{task.progress_percent ?? 0}%</td>
             <td>{task.predecessorNames && task.predecessorNames.length ? task.predecessorNames.join(', ') : '—'}</td>
             <td>{task.resource_names || '—'}</td>
           </tr>

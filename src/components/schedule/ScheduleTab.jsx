@@ -7,14 +7,15 @@ import GanttChart from './GanttChart';
 import NewScheduleTaskModal from './NewScheduleTaskModal';
 import TaskResourcesModal from './TaskResourcesModal';
 import HolidaySettingsModal from './HolidaySettingsModal';
-import { computeDateRange, addDaysToDate, daysBetweenDates, hasCircularDependency } from '../../utils/schedule';
+import { computeDateRange, addDaysToDate, daysBetweenDates, hasCircularDependency, parsePredecessorTokens, formatPredecessorToken } from '../../utils/schedule';
 import { formatDate } from '../../utils/format';
 import { computeEndDateWithCalendar, fetchScheduleCalendar, resolveBusinessDayChoice, snapToNextBusinessDay } from '../../utils/businessDays';
 import { checkConflictsForTaskDateChange } from '../../utils/resources';
+import { exportSchedulePdf } from '../../utils/exportPdf';
 
 const TABLE_WIDTH_STORAGE_KEY = 'cronograma_table_width';
 
-export default function ScheduleTab({ projectId, onResourcesChanged }) {
+export default function ScheduleTab({ projectId, projectName, onResourcesChanged }) {
   const showToast = useToast();
   const [tasks, setTasks] = useState([]);
   const [dependencies, setDependencies] = useState([]);
@@ -91,12 +92,13 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
   const predecessorsTextByTaskId = useMemo(() => {
     const map = {};
     tasks.forEach(t => {
-      const nums = dependencies
+      const tokens = dependencies
         .filter(d => d.task_id === t.id)
-        .map(d => displayNumberByTaskId[d.predecessor_id])
-        .filter(Boolean)
-        .sort((a, b) => a - b);
-      map[t.id] = nums.join(', ');
+        .map(d => ({ num: displayNumberByTaskId[d.predecessor_id], lag: d.lag_days || 0 }))
+        .filter(x => x.num)
+        .sort((a, b) => a.num - b.num)
+        .map(x => formatPredecessorToken(x.num, x.lag));
+      map[t.id] = tokens.join(', ');
     });
     return map;
   }, [tasks, dependencies, displayNumberByTaskId]);
@@ -178,39 +180,94 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
     updates.set(rootTaskId, rootSelfChanges);
 
     const initialDelta = daysBetweenDates(oldEndDate, rootSelfChanges.end_date);
+    if (initialDelta === 0) return updates;
 
-    if (initialDelta !== 0) {
-      const visited = new Set([rootTaskId]);
-      const queue = [{ id: rootTaskId, delta: initialDelta }];
+    // 1. Descobre todas as tarefas alcançáveis a partir da raiz seguindo
+    //    "quem depende de quem" — só essas são candidatas a mudar.
+    const affected = new Set();
+    {
+      const queue = [rootTaskId];
       while (queue.length) {
-        const { id: currentId, delta } = queue.shift();
-        const successorIds = dependencies
+        const currentId = queue.shift();
+        dependencies
           .filter(d => d.predecessor_id === currentId)
-          .map(d => d.task_id);
-        for (const succId of successorIds) {
-          if (visited.has(succId)) continue;
-          visited.add(succId);
-          const succTask = taskById.get(succId);
-          if (!succTask) continue;
-          const base = updates.get(succId) || succTask;
-
-          // Desloca a data corrida como antes, mas se cair num dia não-útil
-          // empurra pro próximo — e recalcula o término pela duração da
-          // própria tarefa (em vez de só somar o mesmo delta), pra start/end
-          // não saírem de sincronia com duration_value/duration_unit quando
-          // há um feriado/fim de semana no meio do caminho.
-          const rawShiftedStart = addDaysToDate(base.start_date, delta);
-          const shiftedStart = snapToNextBusinessDay(rawShiftedStart, calendar);
-          const shiftedEnd = computeEndDateWithCalendar(shiftedStart, succTask.duration_value, succTask.duration_unit, calendar);
-
-          if (shiftedStart === base.start_date && shiftedEnd === base.end_date) continue;
-
-          updates.set(succId, { start_date: shiftedStart, end_date: shiftedEnd });
-          const succDelta = daysBetweenDates(base.end_date, shiftedEnd);
-          queue.push({ id: succId, delta: succDelta });
-        }
+          .forEach(d => {
+            if (d.task_id !== rootTaskId && !affected.has(d.task_id)) {
+              affected.add(d.task_id);
+              queue.push(d.task_id);
+            }
+          });
       }
     }
+    if (!affected.size) return updates;
+
+    // 2. Pra cada tarefa afetada, guarda só as predecessoras que também
+    //    mudaram nessa rodada (a raiz ou outra tarefa afetada) — as demais
+    //    não contribuem porque não se moveram.
+    const relevantPredsOf = new Map();
+    affected.forEach(id => {
+      const preds = dependencies
+        .filter(d => d.task_id === id && (d.predecessor_id === rootTaskId || affected.has(d.predecessor_id)))
+        .map(d => ({ id: d.predecessor_id, lag: d.lag_days || 0 }));
+      relevantPredsOf.set(id, preds);
+    });
+
+    // 3. Ordena topologicamente o subconjunto afetado (Kahn), pra processar
+    //    cada tarefa só depois de todas as predecessoras relevantes dela —
+    //    isso é o que permite, no passo 4, olhar o resultado JÁ ATUALIZADO
+    //    de cada predecessora quando ela também mudou nesta cascata.
+    const inDegree = new Map();
+    affected.forEach(id => {
+      const preds = relevantPredsOf.get(id) || [];
+      inDegree.set(id, preds.filter(p => affected.has(p.id)).length);
+    });
+    const ready = Array.from(affected).filter(id => inDegree.get(id) === 0);
+    const order = [];
+    const done = new Set();
+    while (ready.length) {
+      const id = ready.shift();
+      if (done.has(id)) continue;
+      done.add(id);
+      order.push(id);
+      dependencies
+        .filter(d => d.predecessor_id === id && affected.has(d.task_id))
+        .forEach(d => {
+          const remaining = inDegree.get(d.task_id) - 1;
+          inDegree.set(d.task_id, remaining);
+          if (remaining === 0) ready.push(d.task_id);
+        });
+    }
+    // Se sobrar algo (só aconteceria com um ciclo, já bloqueado ao salvar
+    // predecessoras), fica de fora com segurança — não trava nada.
+
+    // 4. Processa em ordem: pra cada tarefa, calcula o início exigido por
+    //    CADA predecessora relevante (fim dela + atraso configurado) e usa
+    //    o maior entre eles. Só empurra pra frente — nunca antecipa uma
+    //    tarefa que já começava com folga (folga "por acaso" pode encolher;
+    //    atraso configurado explicitamente sempre é respeitado).
+    order.forEach(id => {
+      const succTask = taskById.get(id);
+      if (!succTask) return;
+      const base = updates.get(id) || succTask;
+      const preds = relevantPredsOf.get(id) || [];
+
+      let latestRequiredStart = null;
+      preds.forEach(p => {
+        const predTask = taskById.get(p.id);
+        const predState = p.id === rootTaskId ? rootSelfChanges : (updates.get(p.id) || predTask);
+        const predEnd = predState?.end_date;
+        if (!predEnd) return;
+        const required = addDaysToDate(predEnd, p.lag);
+        if (latestRequiredStart === null || required > latestRequiredStart) latestRequiredStart = required;
+      });
+      if (latestRequiredStart === null || latestRequiredStart <= base.start_date) return;
+
+      const shiftedStart = snapToNextBusinessDay(latestRequiredStart, calendar);
+      const shiftedEnd = computeEndDateWithCalendar(shiftedStart, succTask.duration_value, succTask.duration_unit, calendar);
+      if (shiftedStart === base.start_date && shiftedEnd === base.end_date) return;
+      updates.set(id, { start_date: shiftedStart, end_date: shiftedEnd });
+    });
+
     return updates;
   }
 
@@ -280,6 +337,12 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
     persistTask(task.id, { color });
   }
 
+  function handleProgressChange(task, value) {
+    const clamped = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+    updateLocalTask(task.id, { progress_percent: clamped });
+    persistTask(task.id, { progress_percent: clamped });
+  }
+
   function handleActualStartChange(task, value) {
     const newValue = value || null;
     if (newValue && task.actual_end_date && newValue > task.actual_end_date) {
@@ -343,19 +406,20 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
   async function savePredecessors(task) {
     const text = predecessorDrafts[task.id];
     if (text === undefined) return;
-    const numbers = text.split(',').map(s => s.trim()).filter(Boolean).map(Number);
-    const validIds = [];
-    const invalid = [];
-    numbers.forEach(n => {
-      const id = taskIdByDisplayNumber[n];
-      if (id && id !== task.id) validIds.push(id);
-      else invalid.push(n);
+    const { parsed, invalid } = parsePredecessorTokens(text);
+    const validEntries = [];
+    parsed.forEach(({ displayNumber, lag }) => {
+      const id = taskIdByDisplayNumber[displayNumber];
+      if (id && id !== task.id) validEntries.push({ id, lag });
+      else invalid.push(String(displayNumber));
     });
     if (invalid.length) {
-      alert('Número(s) inválido(s) de predecessora: ' + invalid.join(', ') + '. Use o ID mostrado na primeira coluna.');
+      alert('Predecessora(s) inválida(s): ' + invalid.join(', ') + '. Use o ID mostrado na primeira coluna, com atraso opcional (ex: 3+2 ou 3-1).');
     }
 
-    // Item 3 — não deixa criar dependência circular (direta ou indireta).
+    const validIds = validEntries.map(e => e.id);
+
+    // Item 3 (5 tópicos anteriores) — não deixa criar dependência circular.
     if (hasCircularDependency(task.id, validIds, dependencies)) {
       alert('Essa combinação criaria uma dependência circular (uma tarefa não pode depender, direta ou indiretamente, dela mesma). Nenhuma predecessora foi salva — ajuste os números e tente de novo.');
       setPredecessorDrafts(prev => {
@@ -366,27 +430,29 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
       return;
     }
 
-    // Item 2 — avisa se a tarefa começa antes do término de alguma
-    // predecessora que está sendo vinculada agora, e oferece ajustar.
-    const violating = validIds
-      .map(id => tasks.find(t => t.id === id))
-      .filter(pred => pred && pred.end_date > task.start_date);
+    // Item 2 (5 tópicos anteriores) — agora considerando o atraso/antecedência
+    // configurado em cada predecessora, não só o término dela.
+    const violating = validEntries
+      .map(e => ({ pred: tasks.find(t => t.id === e.id), lag: e.lag }))
+      .filter(v => v.pred)
+      .map(v => ({ ...v, requiredStart: addDaysToDate(v.pred.end_date, v.lag) }))
+      .filter(v => v.requiredStart > task.start_date);
 
     if (violating.length) {
-      const latestEnd = violating.reduce((max, p) => (p.end_date > max ? p.end_date : max), violating[0].end_date);
+      const latestRequired = violating.reduce((max, v) => (v.requiredStart > max ? v.requiredStart : max), violating[0].requiredStart);
       const proceed = confirm(
-        `"${task.name}" começa em ${formatDate(task.start_date)}, antes do término de ${violating.length > 1 ? 'predecessoras que você está vinculando' : 'uma predecessora que você está vinculando'} (a mais tardia termina em ${formatDate(latestEnd)}).\n\n` +
-        `Mover o início de "${task.name}" para ${formatDate(latestEnd)}?`
+        `"${task.name}" começa em ${formatDate(task.start_date)}, antes do que ${violating.length > 1 ? 'exigem as predecessoras' : 'exige a predecessora'} que você está vinculando, considerando o atraso configurado (a mais tardia exige início em ${formatDate(latestRequired)}).\n\n` +
+        `Mover o início de "${task.name}" para ${formatDate(latestRequired)}?`
       );
       if (proceed) {
-        const newEnd = computeEndDateWithCalendar(latestEnd, task.duration_value, task.duration_unit, calendar);
-        await commitTaskDatesWithCascade(task.id, { start_date: latestEnd, end_date: newEnd }, task.end_date);
+        const newEnd = computeEndDateWithCalendar(latestRequired, task.duration_value, task.duration_unit, calendar);
+        await commitTaskDatesWithCascade(task.id, { start_date: latestRequired, end_date: newEnd }, task.end_date);
       }
     }
 
     await supabase.from('schedule_dependencies').delete().eq('task_id', task.id);
-    if (validIds.length) {
-      const rows = validIds.map(pid => ({ task_id: task.id, predecessor_id: pid }));
+    if (validEntries.length) {
+      const rows = validEntries.map(e => ({ task_id: task.id, predecessor_id: e.id, lag_days: e.lag }));
       const { error } = await supabase.from('schedule_dependencies').insert(rows);
       if (error) alert('Erro ao salvar predecessoras: ' + error.message);
     }
@@ -402,6 +468,10 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
     setNewTaskModalOpen(false);
     load();
     onResourcesChanged?.();
+  }
+
+  function handleExportPdf() {
+    exportSchedulePdf(projectName, tasks, displayNumberByTaskId, predecessorsTextByTaskId);
   }
 
   function handleResourcesSaved() {
@@ -444,6 +514,7 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
             📊 Datas reais
           </button>
           <button type="button" className="secondary small" onClick={() => setCalendarModalOpen(true)}>📅 Calendário</button>
+          <button type="button" className="secondary small" onClick={handleExportPdf}>📄 Exportar PDF</button>
           <button className="primary small" onClick={() => setNewTaskModalOpen(true)}>+ Nova Tarefa</button>
         </div>
       </div>
@@ -470,6 +541,7 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
               onDurationUnitChange={handleDurationUnitChange}
               onStartDateChange={handleStartDateChange}
               onColorChange={handleColorChange}
+              onProgressChange={handleProgressChange}
               onEditResources={setResourcesModalTask}
               onActualStartChange={handleActualStartChange}
               onActualEndChange={handleActualEndChange}
@@ -524,7 +596,7 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
       {calendarModalOpen && (
         <HolidaySettingsModal
           onClose={() => setCalendarModalOpen(false)}
-          onSaved={refreshCalendar}
+          onSaved={() => { refreshCalendar(); load(); }}
         />
       )}
     </div>

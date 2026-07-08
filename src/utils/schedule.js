@@ -56,6 +56,10 @@ export function computeDateRange(tasks) {
   return { rangeStart, totalDays };
 }
 
+// Verifica se atribuir `newPredecessorIds` como predecessoras de `taskId`
+// criaria um ciclo (direto ou indireto) no grafo de dependências. Caminha
+// para trás a partir das predecessoras propostas; se chegar de volta em
+// taskId, é circular.
 export function hasCircularDependency(taskId, newPredecessorIds, existingDependencies) {
   const predecessorsOf = new Map();
   existingDependencies.forEach(d => {
@@ -75,4 +79,27 @@ export function hasCircularDependency(taskId, newPredecessorIds, existingDepende
     stack.push(...preds);
   }
   return false;
+}
+
+// Predecessoras aceitam um atraso/antecedência opcional em dias corridos:
+// "3" (atraso 0, comportamento de sempre), "3+2" (começa pelo menos 2 dias
+// corridos depois do término da predecessora 3), "3-1" (antecedência de
+// 1 dia, ou seja, pode começar 1 dia antes do término dela).
+const PREDECESSOR_TOKEN_RE = /^(\d+)([+-]\d+)?$/;
+
+export function parsePredecessorTokens(text) {
+  const tokens = (text || '').split(',').map(s => s.trim()).filter(Boolean);
+  const parsed = [];
+  const invalid = [];
+  tokens.forEach(token => {
+    const match = token.match(PREDECESSOR_TOKEN_RE);
+    if (!match) { invalid.push(token); return; }
+    parsed.push({ displayNumber: Number(match[1]), lag: match[2] ? Number(match[2]) : 0 });
+  });
+  return { parsed, invalid };
+}
+
+export function formatPredecessorToken(displayNumber, lag) {
+  if (!lag) return String(displayNumber);
+  return String(displayNumber) + (lag > 0 ? '+' + lag : String(lag));
 }

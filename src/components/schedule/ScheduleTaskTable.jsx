@@ -23,6 +23,7 @@ export default function ScheduleTaskTable({
   onDurationUnitChange,
   onStartDateChange,
   onColorChange,
+  onProgressChange,
   onEditResources,
   onActualStartChange,
   onActualEndChange,
@@ -46,6 +47,7 @@ export default function ScheduleTaskTable({
           {showActual && <th>Início Real</th>}
           {showActual && <th>Término Real</th>}
           <th>Predecessoras</th>
+          <th>Progresso</th>
           <th>Recursos</th>
           <th>Cor</th>
           <th></th>
@@ -112,11 +114,25 @@ export default function ScheduleTaskTable({
               <td>
                 <input
                   className="schedule-predecessors-input"
-                  placeholder="ex: 1, 3"
+                  placeholder="ex: 1, 3+2"
+                  title="Número da tarefa predecessora. Opcionalmente, +N ou -N dias de atraso/antecedência (ex: 3+2 = começa 2 dias depois do término da tarefa 3)."
                   value={predecessorDrafts[task.id] !== undefined ? predecessorDrafts[task.id] : predecessorsTextByTaskId[task.id]}
                   onChange={e => onPredecessorsInputChange(task.id, e.target.value)}
                   onBlur={() => onPredecessorsBlur(task)}
                 />
+              </td>
+              <td>
+                <div className="schedule-duration-cell">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={task.progress_percent ?? 0}
+                    onChange={e => onProgressChange(task, e.target.value)}
+                  />
+                  <span>%</span>
+                </div>
               </td>
               <td>
                 <button type="button" className="secondary small schedule-resources-btn" onClick={() => onEditResources(task)}>

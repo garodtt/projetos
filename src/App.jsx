@@ -248,7 +248,7 @@ export default function App() {
               />
             </div>
             <div className={'panel' + (activeTab === 'schedule' ? ' active' : '')}>
-              <ScheduleTab projectId={currentProjectId} onResourcesChanged={refreshConflicts} />
+              <ScheduleTab projectId={currentProjectId} projectName={currentProject.name} onResourcesChanged={refreshConflicts} />
             </div>
           </>
         )}
