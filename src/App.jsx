@@ -6,16 +6,20 @@ import ProjectVersionModal from './components/ProjectVersionModal';
 import GlobalSearchModal from './components/GlobalSearchModal';
 import TrashModal from './components/TrashModal';
 import ArchivedProjectsModal from './components/ArchivedProjectsModal';
+import ResourcesModal from './components/ResourcesModal';
+import ConflictsModal from './components/ConflictsModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
 import CombinedScheduleView from './components/schedule/CombinedScheduleView';
 import Spinner from './components/Spinner';
+import { computeAllConflicts } from './utils/resources';
 
 export default function App() {
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [pendingCounts, setPendingCounts] = useState({});
+  const [resourceConflictProjectIds, setResourceConflictProjectIds] = useState(new Set());
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [currentProject, setCurrentProject] = useState(null);
   const [projectLoading, setProjectLoading] = useState(false);
@@ -28,9 +32,11 @@ export default function App() {
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [trashModalOpen, setTrashModalOpen] = useState(false);
   const [archivedModalOpen, setArchivedModalOpen] = useState(false);
+  const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
+  const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
 
-  const [mainView, setMainView] = useState('project'); // 'project' | 'combinedSchedule'
-  const [combinedScope, setCombinedScope] = useState(null); // { type: 'global' } | { type: 'folder', folderId, folderName }
+  const [mainView, setMainView] = useState('project');
+  const [combinedScope, setCombinedScope] = useState(null);
 
   const bumpTaskRefresh = useCallback(() => setTaskRefreshTick(t => t + 1), []);
 
@@ -64,10 +70,18 @@ export default function App() {
     setPendingCounts(counts);
   }, []);
 
+  const refreshConflicts = useCallback(async () => {
+    const conflicts = await computeAllConflicts();
+    const ids = new Set();
+    conflicts.forEach(c => c.tasks.forEach(t => ids.add(t.projectId)));
+    setResourceConflictProjectIds(ids);
+  }, []);
+
   useEffect(() => {
     loadProjects();
     loadPendingCounts();
-  }, [loadProjects, loadPendingCounts]);
+    refreshConflicts();
+  }, [loadProjects, loadPendingCounts, refreshConflicts]);
 
   async function refreshCurrentProject() {
     if (!currentProjectId) return;
@@ -127,6 +141,7 @@ export default function App() {
     setCurrentProject(null);
     await loadProjects();
     await loadPendingCounts();
+    await refreshConflicts();
   }
 
   function openGlobalSchedule() {
@@ -151,12 +166,19 @@ export default function App() {
     if (target.type === 'project') selectProject(target.projectId, target.tab);
   }
 
+  async function handleOpenProjectFromConflicts(projectId) {
+    setConflictsModalOpen(false);
+    await selectProject(projectId);
+    setActiveTab('schedule');
+  }
+
   return (
     <div className="app">
       <Sidebar
         projects={projects}
         loading={projectsLoading}
         pendingCounts={pendingCounts}
+        resourceConflictProjectIds={resourceConflictProjectIds}
         currentProjectId={currentProjectId}
         onSelect={selectProject}
         onNewProject={openNewProjectModal}
@@ -167,6 +189,8 @@ export default function App() {
         onOpenSearch={() => setSearchModalOpen(true)}
         onOpenTrash={() => setTrashModalOpen(true)}
         onOpenArchived={() => setArchivedModalOpen(true)}
+        onOpenResources={() => setResourcesModalOpen(true)}
+        onOpenConflicts={() => setConflictsModalOpen(true)}
       />
 
       <main className="content">
@@ -224,7 +248,7 @@ export default function App() {
               />
             </div>
             <div className={'panel' + (activeTab === 'schedule' ? ' active' : '')}>
-              <ScheduleTab projectId={currentProjectId} />
+              <ScheduleTab projectId={currentProjectId} onResourcesChanged={refreshConflicts} />
             </div>
           </>
         )}
@@ -258,7 +282,7 @@ export default function App() {
       {trashModalOpen && (
         <TrashModal
           onClose={() => setTrashModalOpen(false)}
-          onRestored={() => { loadPendingCounts(); if (currentProjectId) bumpTaskRefresh(); }}
+          onRestored={() => { loadPendingCounts(); refreshConflicts(); if (currentProjectId) bumpTaskRefresh(); }}
         />
       )}
 
@@ -267,6 +291,17 @@ export default function App() {
           projects={projects}
           onClose={() => setArchivedModalOpen(false)}
           onUnarchived={loadProjects}
+        />
+      )}
+
+      {resourcesModalOpen && (
+        <ResourcesModal onClose={() => { setResourcesModalOpen(false); refreshConflicts(); }} />
+      )}
+
+      {conflictsModalOpen && (
+        <ConflictsModal
+          onClose={() => setConflictsModalOpen(false)}
+          onOpenProject={handleOpenProjectFromConflicts}
         />
       )}
     </div>

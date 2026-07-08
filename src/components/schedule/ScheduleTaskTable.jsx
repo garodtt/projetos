@@ -14,15 +14,18 @@ export default function ScheduleTaskTable({
   onToggleCollapse,
   predecessorDrafts,
   predecessorsTextByTaskId,
+  resourceSummaryByTaskId,
+  showActual,
   onNameChange,
   onNameBlur,
   onDurationValueChange,
   onDurationValueBlur,
   onDurationUnitChange,
   onStartDateChange,
-  onResourceChange,
-  onResourceBlur,
   onColorChange,
+  onEditResources,
+  onActualStartChange,
+  onActualEndChange,
   onIndent,
   onOutdent,
   onMoveUp,
@@ -40,6 +43,8 @@ export default function ScheduleTaskTable({
           <th>Duração</th>
           <th>Início</th>
           <th>Término</th>
+          {showActual && <th>Início Real</th>}
+          {showActual && <th>Término Real</th>}
           <th>Predecessoras</th>
           <th>Recursos</th>
           <th>Cor</th>
@@ -94,6 +99,16 @@ export default function ScheduleTaskTable({
                 <input type="date" value={task.start_date} onChange={e => onStartDateChange(task, e.target.value)} />
               </td>
               <td className="schedule-end-cell">{formatDate(task.end_date)}</td>
+              {showActual && (
+                <td>
+                  <input type="date" value={task.actual_start_date || ''} onChange={e => onActualStartChange(task, e.target.value)} />
+                </td>
+              )}
+              {showActual && (
+                <td>
+                  <input type="date" value={task.actual_end_date || ''} onChange={e => onActualEndChange(task, e.target.value)} />
+                </td>
+              )}
               <td>
                 <input
                   className="schedule-predecessors-input"
@@ -104,12 +119,9 @@ export default function ScheduleTaskTable({
                 />
               </td>
               <td>
-                <input
-                  placeholder="Nomes separados por vírgula"
-                  value={task.resource_names || ''}
-                  onChange={e => onResourceChange(task, e.target.value)}
-                  onBlur={() => onResourceBlur(task)}
-                />
+                <button type="button" className="secondary small schedule-resources-btn" onClick={() => onEditResources(task)}>
+                  {resourceSummaryByTaskId[task.id] || 'Definir'}
+                </button>
               </td>
               <td className="schedule-color-cell">
                 <input

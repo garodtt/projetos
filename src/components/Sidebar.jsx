@@ -7,7 +7,8 @@ import TextPromptModal from './TextPromptModal';
 export default function Sidebar({
   projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject,
   onOpenGlobalSchedule, onOpenFolderSchedule, isGlobalScheduleActive, activeFolderScheduleId,
-  onOpenSearch, onOpenTrash, onOpenArchived,
+  onOpenSearch, onOpenTrash, onOpenArchived, onOpenResources, onOpenConflicts,
+  resourceConflictProjectIds,
 }) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
@@ -100,6 +101,7 @@ export default function Sidebar({
 
   function renderProjectRow(p) {
     const count = pendingCounts?.[p.id] || 0;
+    const hasConflict = resourceConflictProjectIds?.has(p.id);
     return (
       <div
         key={p.id}
@@ -107,6 +109,7 @@ export default function Sidebar({
         onClick={() => onSelect(p.id)}
       >
         <span className="project-item-name">{p.name}</span>
+        {hasConflict && <span className="conflict-badge" title="Conflito de recurso">⚠</span>}
         {count > 0 && <span className="pending-badge">{count}</span>}
       </div>
     );
@@ -116,6 +119,7 @@ export default function Sidebar({
     const isOpen = expanded.has(folder.id);
     const children = activeProjects.filter(p => p.folder_id === folder.id);
     const folderPending = children.reduce((sum, p) => sum + (pendingCounts?.[p.id] || 0), 0);
+    const folderHasConflict = children.some(p => resourceConflictProjectIds?.has(p.id));
 
     return (
       <div key={folder.id} className="folder-block">
@@ -123,6 +127,7 @@ export default function Sidebar({
           <span className="folder-chevron">{isOpen ? '▾' : '▸'}</span>
           <span className="folder-icon">📁</span>
           <span className="folder-name">{folder.name}</span>
+          {folderHasConflict && <span className="conflict-badge" title="Conflito de recurso em algum projeto">⚠</span>}
           {folderPending > 0 && <span className="pending-badge">{folderPending}</span>}
           <div className="folder-actions">
             <button className="icon-btn" onClick={e => { e.stopPropagation(); onNewProject(folder.id); }} title="Novo projeto nesta pasta" aria-label="Novo projeto nesta pasta">+</button>
@@ -164,6 +169,10 @@ export default function Sidebar({
         <div className="sidebar-utility-row">
           <button className="sidebar-utility-btn" onClick={onOpenSearch}>🔍 Buscar</button>
           <button className="sidebar-utility-btn" onClick={onOpenTrash}>🗑️ Lixeira</button>
+        </div>
+        <div className="sidebar-utility-row">
+          <button className="sidebar-utility-btn" onClick={onOpenResources}>🧑‍💼 Recursos</button>
+          <button className="sidebar-utility-btn" onClick={onOpenConflicts}>⚠ Conflitos</button>
         </div>
       </div>
       <div className="project-list">

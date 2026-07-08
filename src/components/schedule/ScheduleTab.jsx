@@ -4,18 +4,29 @@ import { useToast } from '../Toast';
 import Spinner from '../Spinner';
 import ScheduleTaskTable from './ScheduleTaskTable';
 import GanttChart from './GanttChart';
-import { computeEndDate, computeDateRange, addDaysToDate, daysBetweenDates } from '../../utils/schedule';
+import NewScheduleTaskModal from './NewScheduleTaskModal';
+import TaskResourcesModal from './TaskResourcesModal';
+import HolidaySettingsModal from './HolidaySettingsModal';
+import { computeDateRange, addDaysToDate, daysBetweenDates } from '../../utils/schedule';
+import { computeEndDateWithCalendar, fetchScheduleCalendar } from '../../utils/businessDays';
+import { checkConflictsForTaskDateChange } from '../../utils/resources';
 
 const TABLE_WIDTH_STORAGE_KEY = 'cronograma_table_width';
 
-export default function ScheduleTab({ projectId }) {
+export default function ScheduleTab({ projectId, onResourcesChanged }) {
   const showToast = useToast();
   const [tasks, setTasks] = useState([]);
   const [dependencies, setDependencies] = useState([]);
+  const [resourceSummaryByTaskId, setResourceSummaryByTaskId] = useState({});
+  const [calendar, setCalendar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('Dia');
+  const [showActual, setShowActual] = useState(false);
   const [predecessorDrafts, setPredecessorDrafts] = useState({});
   const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+  const [newTaskModalOpen, setNewTaskModalOpen] = useState(false);
+  const [resourcesModalTask, setResourcesModalTask] = useState(null);
+  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const durationEditOriginalEnd = useRef({});
 
   const [tableWidth, setTableWidth] = useState(() => {
@@ -26,19 +37,43 @@ export default function ScheduleTab({ projectId }) {
   const wrapRef = useRef(null);
 
   const load = useCallback(async () => {
-    const [tasksRes, depsRes] = await Promise.all([
+    const [tasksRes, depsRes, calendarData] = await Promise.all([
       supabase.from('schedule_tasks').select('*').eq('project_id', projectId).is('deleted_at', null).order('position', { ascending: true }),
       supabase.from('schedule_dependencies').select('*'),
+      fetchScheduleCalendar(),
     ]);
     if (tasksRes.error) { alert('Erro ao carregar cronograma: ' + tasksRes.error.message); setLoading(false); return; }
     if (depsRes.error) { alert('Erro ao carregar dependências: ' + depsRes.error.message); setLoading(false); return; }
     setTasks(tasksRes.data);
+    setCalendar(calendarData);
     const taskIds = new Set(tasksRes.data.map(t => t.id));
     setDependencies(depsRes.data.filter(d => taskIds.has(d.task_id) && taskIds.has(d.predecessor_id)));
+
+    if (tasksRes.data.length) {
+      const { data: resRows, error: resError } = await supabase
+        .from('schedule_task_resources').select('task_id, hours_per_day, resources(name)')
+        .in('task_id', tasksRes.data.map(t => t.id));
+      if (!resError) {
+        const summary = {};
+        (resRows || []).forEach(r => {
+          const label = (r.resources?.name || '(recurso)') + ' (' + r.hours_per_day + 'h)';
+          summary[r.task_id] = summary[r.task_id] ? summary[r.task_id] + ', ' + label : label;
+        });
+        setResourceSummaryByTaskId(summary);
+      }
+    } else {
+      setResourceSummaryByTaskId({});
+    }
+
     setLoading(false);
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function refreshCalendar() {
+    const data = await fetchScheduleCalendar();
+    setCalendar(data);
+  }
 
   const displayNumberByTaskId = useMemo(() => {
     const map = {};
@@ -183,23 +218,26 @@ export default function ScheduleTab({ projectId }) {
     if (entries.length > 1) {
       showToast('Datas ajustadas em ' + (entries.length - 1) + ' tarefa(s) dependente(s)');
     }
-  }
 
-  async function addTask() {
-    const today = new Date().toISOString().slice(0, 10);
-    const position = tasks.length ? Math.max(...tasks.map(t => t.position)) + 1 : 0;
-    const { error } = await supabase.from('schedule_tasks').insert({
-      project_id: projectId,
-      name: 'Nova tarefa',
-      level: 0,
-      position,
-      duration_value: 1,
-      duration_unit: 'dias',
-      start_date: today,
-      end_date: computeEndDate(today, 1, 'dias'),
-    });
-    if (error) { alert('Erro ao criar tarefa: ' + error.message); return; }
-    load();
+    const conflictChecks = await Promise.all(entries.map(async ([id, changes]) => {
+      const task = tasks.find(t => t.id === id);
+      const newStart = changes.start_date || task?.start_date;
+      const newEnd = changes.end_date || task?.end_date;
+      return checkConflictsForTaskDateChange(id, newStart, newEnd);
+    }));
+    const allConflicts = conflictChecks.flat();
+    if (allConflicts.length) {
+      const seen = new Set();
+      const lines = [];
+      allConflicts.forEach(c => {
+        const key = c.resourceName + '|' + c.projectName + '|' + c.taskName;
+        if (seen.has(key)) return;
+        seen.add(key);
+        lines.push(`${c.resourceName}: ${c.projectName} / ${c.taskName} (${c.existingHours}h) — total ${c.total}h de ${c.capacity}h`);
+      });
+      alert('Aviso de conflito de recurso após a mudança de data:\n\n' + lines.join('\n'));
+    }
+    onResourcesChanged?.();
   }
 
   function handleNameChange(task, value) { updateLocalTask(task.id, { name: value }); }
@@ -209,7 +247,7 @@ export default function ScheduleTab({ projectId }) {
     if (!(task.id in durationEditOriginalEnd.current)) {
       durationEditOriginalEnd.current[task.id] = task.end_date;
     }
-    const newEnd = computeEndDate(task.start_date, value, task.duration_unit);
+    const newEnd = computeEndDateWithCalendar(task.start_date, value, task.duration_unit, calendar);
     updateLocalTask(task.id, { duration_value: value, end_date: newEnd });
   }
   function handleDurationValueBlur(task) {
@@ -219,21 +257,27 @@ export default function ScheduleTab({ projectId }) {
   }
 
   function handleDurationUnitChange(task, unit) {
-    const newEnd = computeEndDate(task.start_date, task.duration_value, unit);
+    const newEnd = computeEndDateWithCalendar(task.start_date, task.duration_value, unit, calendar);
     commitTaskDatesWithCascade(task.id, { duration_unit: unit, end_date: newEnd }, task.end_date);
   }
 
   function handleStartDateChange(task, value) {
-    const newEnd = computeEndDate(value, task.duration_value, task.duration_unit);
+    const newEnd = computeEndDateWithCalendar(value, task.duration_value, task.duration_unit, calendar);
     commitTaskDatesWithCascade(task.id, { start_date: value, end_date: newEnd }, task.end_date);
   }
-
-  function handleResourceChange(task, value) { updateLocalTask(task.id, { resource_names: value }); }
-  function handleResourceBlur(task) { persistTask(task.id, { resource_names: task.resource_names }); }
 
   function handleColorChange(task, color) {
     updateLocalTask(task.id, { color });
     persistTask(task.id, { color });
+  }
+
+  function handleActualStartChange(task, value) {
+    updateLocalTask(task.id, { actual_start_date: value || null });
+    persistTask(task.id, { actual_start_date: value || null });
+  }
+  function handleActualEndChange(task, value) {
+    updateLocalTask(task.id, { actual_end_date: value || null });
+    persistTask(task.id, { actual_end_date: value || null });
   }
 
   async function indentTask(task) {
@@ -270,6 +314,7 @@ export default function ScheduleTab({ projectId }) {
       },
     });
     load();
+    onResourcesChanged?.();
   }
 
   function handlePredecessorsInputChange(taskId, text) {
@@ -305,7 +350,19 @@ export default function ScheduleTab({ projectId }) {
     load();
   }
 
-  if (loading) {
+  function handleTaskCreated() {
+    setNewTaskModalOpen(false);
+    load();
+    onResourcesChanged?.();
+  }
+
+  function handleResourcesSaved() {
+    setResourcesModalTask(null);
+    load();
+    onResourcesChanged?.();
+  }
+
+  if (loading || !calendar) {
     return (
       <div>
         <div className="section-header"><h3>Cronograma</h3></div>
@@ -331,7 +388,15 @@ export default function ScheduleTab({ projectId }) {
               </button>
             ))}
           </div>
-          <button className="primary small" onClick={addTask}>+ Nova Tarefa</button>
+          <button
+            type="button"
+            className={'secondary small' + (showActual ? ' active-toggle' : '')}
+            onClick={() => setShowActual(v => !v)}
+          >
+            📊 Datas reais
+          </button>
+          <button type="button" className="secondary small" onClick={() => setCalendarModalOpen(true)}>📅 Calendário</button>
+          <button className="primary small" onClick={() => setNewTaskModalOpen(true)}>+ Nova Tarefa</button>
         </div>
       </div>
 
@@ -348,15 +413,18 @@ export default function ScheduleTab({ projectId }) {
               onToggleCollapse={toggleCollapse}
               predecessorDrafts={predecessorDrafts}
               predecessorsTextByTaskId={predecessorsTextByTaskId}
+              resourceSummaryByTaskId={resourceSummaryByTaskId}
+              showActual={showActual}
               onNameChange={handleNameChange}
               onNameBlur={handleNameBlur}
               onDurationValueChange={handleDurationValueChange}
               onDurationValueBlur={handleDurationValueBlur}
               onDurationUnitChange={handleDurationUnitChange}
               onStartDateChange={handleStartDateChange}
-              onResourceChange={handleResourceChange}
-              onResourceBlur={handleResourceBlur}
               onColorChange={handleColorChange}
+              onEditResources={setResourcesModalTask}
+              onActualStartChange={handleActualStartChange}
+              onActualEndChange={handleActualEndChange}
               onIndent={indentTask}
               onOutdent={outdentTask}
               onMoveUp={t => moveTask(t, 'up')}
@@ -381,8 +449,35 @@ export default function ScheduleTab({ projectId }) {
             viewMode={viewMode}
             rangeStart={rangeStart}
             totalDays={totalDays}
+            calendar={calendar}
+            showActual={showActual}
           />
         </div>
+      )}
+
+      {newTaskModalOpen && (
+        <NewScheduleTaskModal
+          projectId={projectId}
+          nextPosition={tasks.length ? Math.max(...tasks.map(t => t.position)) + 1 : 0}
+          calendar={calendar}
+          onClose={() => setNewTaskModalOpen(false)}
+          onCreated={handleTaskCreated}
+        />
+      )}
+
+      {resourcesModalTask && (
+        <TaskResourcesModal
+          task={resourcesModalTask}
+          onClose={() => setResourcesModalTask(null)}
+          onSaved={handleResourcesSaved}
+        />
+      )}
+
+      {calendarModalOpen && (
+        <HolidaySettingsModal
+          onClose={() => setCalendarModalOpen(false)}
+          onSaved={refreshCalendar}
+        />
       )}
     </div>
   );

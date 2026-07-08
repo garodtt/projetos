@@ -433,3 +433,40 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .participant-chip button:hover { color:#1e1b4b; }
 .participants-input-row { display:flex; gap:6px; margin-bottom:10px; }
 .participants-input-row input { margin-bottom:0; flex:1; }
+
+.resource-chip-list { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.resource-chip { display:inline-flex; align-items:center; gap:4px; background:#ecfdf5; color:#065f46; padding:4px 8px; border-radius:14px; font-size:13px; }
+.resource-chip input[type="number"] { width:40px; padding:2px 4px; margin:0; border:1px solid #a7f3d0; border-radius:4px; text-align:center; }
+.resource-chip small { color:#047857; }
+.resource-chip button { background:none; border:none; color:#065f46; cursor:pointer; font-size:11px; padding:0; }
+.resource-chip button:disabled { opacity:0.3; cursor:default; }
+
+.resource-picker-list-row { display:flex; gap:8px; margin-bottom:8px; }
+.resource-picker-list-row select { flex:1; margin:0; padding:8px; border:1px solid #ccc; border-radius:6px; }
+.resource-picker-new-form { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.resource-picker-new-form input { margin:0; }
+.resource-picker-new-form input:first-child { flex:1; }
+.resource-picker-new-hours { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.resource-picker-new-hours input { width:55px; }
+
+.schedule-resources-btn { width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+
+.conflict-badge { background:#f59e0b; color:#fff; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; margin-left:4px; flex-shrink:0; }
+.conflict-detail { font-size:13px; margin:4px 0 0; }
+.conflict-task-link { color:#2563eb; cursor:pointer; text-decoration:underline; }
+
+.gantt-bar-track { position:absolute; border-radius:4px; overflow:hidden; }
+.gantt-bar-segment { position:absolute; top:0; height:100%; background:#93c5fd; }
+.gantt-bar-segment.is-nonbusiness { opacity:0.35; }
+.gantt-bar-actual-track { position:absolute; border-radius:2px; overflow:hidden; }
+.gantt-bar-actual-segment { position:absolute; top:0; height:100%; background:#374151; }
+.gantt-bar-actual-segment.is-nonbusiness { opacity:0.35; }
+
+
+
+
+
+
+
+
+

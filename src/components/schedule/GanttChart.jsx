@@ -7,12 +7,11 @@ import {
   shortMonthLabel,
   fullMonthYearLabel,
 } from '../../utils/schedule';
+import { isBusinessDay, computeNationalHolidays } from '../../utils/businessDays';
 
-// Precisa bater com a altura do <thead> da tabela em App.css (.schedule-table thead tr)
 const TOP_ROW_HEIGHT = 24;
 const BOTTOM_ROW_HEIGHT = 36;
 const HEADER_HEIGHT = TOP_ROW_HEIGHT + BOTTOM_ROW_HEIGHT;
-// Precisa bater com a altura das linhas do corpo da tabela (.schedule-table tbody tr)
 const ROW_HEIGHT = 42;
 const BAR_HEIGHT = 24;
 const DAY_WIDTH = { Dia: 42, Semana: 16, Mês: 6 };
@@ -45,12 +44,13 @@ function buildTopGroups(dayDates, mode) {
   return groupConsecutive(dayDates, d => d.slice(0, 7), d => fullMonthYearLabel(d));
 }
 
-function buildBottomGroups(dayDates, mode) {
+function buildBottomGroups(dayDates, mode, calendar) {
   if (mode === 'Dia') {
     return dayDates.map((d, idx) => ({
       startIdx: idx,
       count: 1,
-      isWeekend: getDayOfWeek(d) === 0 || getDayOfWeek(d) === 6,
+      isNonBusiness: !isBusinessDay(d, calendar),
+      isHoliday: calendar.customHolidays.has(d) || (calendar.settings.use_national_holidays && computeNationalHolidays(Number(d.slice(0, 4))).has(d)),
       render: 'day',
       weekday: WEEKDAY_LABELS[getDayOfWeek(d)],
       dateLabel: shortDayLabel(d),
@@ -61,11 +61,21 @@ function buildBottomGroups(dayDates, mode) {
     return groups.map(g => {
       const startDate = dayDates[g.startIdx];
       const endDate = dayDates[g.startIdx + g.count - 1];
-      return { ...g, render: 'label', isWeekend: false, label: shortDayLabel(startDate) + ' – ' + shortDayLabel(endDate) };
+      return { ...g, render: 'label', isNonBusiness: false, isHoliday: false, label: shortDayLabel(startDate) + ' – ' + shortDayLabel(endDate) };
     });
   }
   return groupConsecutive(dayDates, d => d.slice(0, 7), d => shortMonthLabel(d))
-    .map(g => ({ ...g, render: 'label', isWeekend: false }));
+    .map(g => ({ ...g, render: 'label', isNonBusiness: false, isHoliday: false }));
+}
+
+function buildDaySegments(startDate, endDate, dayWidth, calendar) {
+  const days = daysBetweenDates(startDate, endDate);
+  const segments = [];
+  for (let i = 0; i < days; i++) {
+    const d = addDaysToDate(startDate, i);
+    segments.push({ left: i * dayWidth, width: dayWidth, isBusiness: isBusinessDay(d, calendar) });
+  }
+  return segments;
 }
 
 function buildArrowPath(x1, y1, x2, y2) {
@@ -79,7 +89,7 @@ function buildArrowPath(x1, y1, x2, y2) {
   return `M ${x1} ${y1} H ${x1 + offset} V ${midY} H ${safeX2} V ${y2} H ${x2}`;
 }
 
-export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, totalDays }) {
+export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, totalDays, calendar, showActual }) {
   const dayWidth = DAY_WIDTH[viewMode] || DAY_WIDTH.Dia;
 
   const dayDates = useMemo(
@@ -88,7 +98,7 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
   );
 
   const topGroups = useMemo(() => buildTopGroups(dayDates, viewMode), [dayDates, viewMode]);
-  const bottomGroups = useMemo(() => buildBottomGroups(dayDates, viewMode), [dayDates, viewMode]);
+  const bottomGroups = useMemo(() => buildBottomGroups(dayDates, viewMode, calendar), [dayDates, viewMode, calendar]);
 
   const totalWidth = totalDays * dayWidth;
   const bodyHeight = Math.max(tasks.length * ROW_HEIGHT, ROW_HEIGHT);
@@ -106,6 +116,7 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
       map[t.id] = {
         left,
         width,
+        rowTop,
         top: rowTop + (ROW_HEIGHT - BAR_HEIGHT) / 2,
         centerY: rowTop + ROW_HEIGHT / 2,
       };
@@ -132,12 +143,13 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
             {bottomGroups.map((g, i) => (
               <div
                 key={i}
-                className={'gantt-header-cell' + (g.isWeekend ? ' is-weekend' : '')}
+                className={'gantt-header-cell' + (g.isNonBusiness ? ' is-weekend' : '')}
+                title={g.isHoliday ? 'Feriado' : undefined}
                 style={{ left: g.startIdx * dayWidth, width: g.count * dayWidth }}
               >
                 {g.render === 'day' ? (
                   <div className="gantt-header-day">
-                    <span className="gantt-header-weekday">{g.weekday}</span>
+                    <span className="gantt-header-weekday">{g.weekday}{g.isHoliday ? ' 🎌' : ''}</span>
                     <span className="gantt-header-date">{g.dateLabel}</span>
                   </div>
                 ) : (
@@ -150,11 +162,10 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
 
         <div className="gantt-chart-body" style={{ width: totalWidth, height: bodyHeight }}>
           {dayDates.map((d, i) => {
-            const dow = getDayOfWeek(d);
-            if (dow !== 0 && dow !== 6) return null;
+            if (isBusinessDay(d, calendar)) return null;
             return (
               <div
-                key={'weekend-' + i}
+                key={'nonbiz-' + i}
                 className="gantt-weekend-band"
                 style={{ left: i * dayWidth, width: dayWidth, height: bodyHeight }}
               />
@@ -177,14 +188,47 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
             const bar = barsByTaskId[t.id];
             const isMilestone = bar.width <= 4;
             const colorStyle = t.color ? { background: t.color } : undefined;
+            const hasActual = showActual && t.actual_start_date && t.actual_end_date;
+            const plannedTop = hasActual ? bar.rowTop + 4 : bar.top;
+            const plannedHeight = hasActual ? 14 : BAR_HEIGHT;
+            const plannedSegments = isMilestone ? [] : buildDaySegments(t.start_date, t.end_date, dayWidth, calendar);
+
+            let actualBarPos = null;
+            let actualSegments = [];
+            if (hasActual) {
+              const aLeft = daysBetweenDates(rangeStart, t.actual_start_date) * dayWidth;
+              const aWidthDays = Math.max(daysBetweenDates(t.actual_start_date, t.actual_end_date), 0);
+              actualBarPos = { left: aLeft, width: aWidthDays * dayWidth, top: bar.rowTop + 4 + 14 + 2, height: 10 };
+              actualSegments = buildDaySegments(t.actual_start_date, t.actual_end_date, dayWidth, calendar);
+            }
+
             return (
               <div key={t.id}>
                 {isMilestone ? (
                   <div className="gantt-milestone" style={{ left: bar.left, top: bar.centerY, ...colorStyle }} />
                 ) : (
-                  <div className="gantt-bar" style={{ left: bar.left, width: bar.width, top: bar.top, height: BAR_HEIGHT, ...colorStyle }} />
+                  <div className="gantt-bar-track" style={{ left: bar.left, width: bar.width, top: plannedTop, height: plannedHeight }}>
+                    {plannedSegments.map((seg, i) => (
+                      <div
+                        key={i}
+                        className={'gantt-bar-segment' + (!seg.isBusiness ? ' is-nonbusiness' : '')}
+                        style={{ left: seg.left, width: seg.width, ...colorStyle }}
+                      />
+                    ))}
+                  </div>
                 )}
-                <div className="gantt-bar-label" style={{ left: bar.left + Math.max(bar.width, 10) + 6, top: bar.top }}>
+                {actualBarPos && (
+                  <div className="gantt-bar-actual-track" style={actualBarPos} title="Datas reais">
+                    {actualSegments.map((seg, i) => (
+                      <div
+                        key={i}
+                        className={'gantt-bar-actual-segment' + (!seg.isBusiness ? ' is-nonbusiness' : '')}
+                        style={{ left: seg.left, width: seg.width }}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="gantt-bar-label" style={{ left: bar.left + Math.max(bar.width, 10) + 6, top: plannedTop }}>
                   {t.name}
                 </div>
               </div>
