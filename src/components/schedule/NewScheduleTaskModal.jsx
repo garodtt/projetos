@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 import ResourcePicker from '../ResourcePicker';
-import { computeEndDateWithCalendar, snapToNextBusinessDay } from '../../utils/businessDays';
+import { computeEndDateWithCalendar, isBusinessDay, snapToNextBusinessDay } from '../../utils/businessDays';
 import { findConflictsForAssignment } from '../../utils/resources';
 import { formatDate } from '../../utils/format';
 
@@ -31,11 +31,13 @@ export default function NewScheduleTaskModal({ projectId, nextPosition, calendar
   const [saving, setSaving] = useState(false);
 
   function handleStartDateChange(value) {
+    if (isBusinessDay(value, calendar)) { setStartDate(value); return; }
     const snapped = snapToNextBusinessDay(value, calendar);
-    if (snapped !== value) {
-      showToast('Início ajustado para o próximo dia útil (' + formatDate(snapped) + ')');
-    }
-    setStartDate(snapped);
+    const proceed = confirm(
+      formatDate(value) + ' cai num sábado, domingo ou feriado.\n\n' +
+      'Mover o início para o próximo dia útil (' + formatDate(snapped) + ')?'
+    );
+    setStartDate(proceed ? snapped : value);
   }
 
   async function handleCreate() {

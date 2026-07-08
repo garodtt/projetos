@@ -9,7 +9,7 @@ import TaskResourcesModal from './TaskResourcesModal';
 import HolidaySettingsModal from './HolidaySettingsModal';
 import { computeDateRange, addDaysToDate, daysBetweenDates } from '../../utils/schedule';
 import { formatDate } from '../../utils/format';
-import { computeEndDateWithCalendar, fetchScheduleCalendar, snapToNextBusinessDay } from '../../utils/businessDays';
+import { computeEndDateWithCalendar, fetchScheduleCalendar, isBusinessDay, snapToNextBusinessDay } from '../../utils/businessDays';
 import { checkConflictsForTaskDateChange } from '../../utils/resources';
 
 const TABLE_WIDTH_STORAGE_KEY = 'cronograma_table_width';
@@ -260,12 +260,17 @@ export default function ScheduleTab({ projectId, onResourcesChanged }) {
   }
 
   function handleStartDateChange(task, value) {
-    const snapped = snapToNextBusinessDay(value, calendar);
-    if (snapped !== value) {
-      showToast('Início ajustado para o próximo dia útil (' + formatDate(snapped) + ')');
+    let finalValue = value;
+    if (!isBusinessDay(value, calendar)) {
+      const snapped = snapToNextBusinessDay(value, calendar);
+      const proceed = confirm(
+        formatDate(value) + ' cai num sábado, domingo ou feriado.\n\n' +
+        'Mover o início para o próximo dia útil (' + formatDate(snapped) + ')?'
+      );
+      finalValue = proceed ? snapped : value;
     }
-    const newEnd = computeEndDateWithCalendar(snapped, task.duration_value, task.duration_unit, calendar);
-    commitTaskDatesWithCascade(task.id, { start_date: snapped, end_date: newEnd }, task.end_date);
+    const newEnd = computeEndDateWithCalendar(finalValue, task.duration_value, task.duration_unit, calendar);
+    commitTaskDatesWithCascade(task.id, { start_date: finalValue, end_date: newEnd }, task.end_date);
   }
 
   function handleColorChange(task, color) {
