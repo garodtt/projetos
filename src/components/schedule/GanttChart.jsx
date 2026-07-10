@@ -89,7 +89,16 @@ function buildArrowPath(x1, y1, x2, y2) {
   return `M ${x1} ${y1} H ${x1 + offset} V ${midY} H ${safeX2} V ${y2} H ${x2}`;
 }
 
+const DEFAULT_CALENDAR = {
+  settings: { saturday_is_business_day: false, sunday_is_business_day: false, use_national_holidays: false },
+  customHolidays: new Set(),
+};
+
 export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, totalDays, calendar, showActual }) {
+  // Blindagem: se calendar não vier (ex: uma tela nova esquecer de buscá-lo),
+  // cai num padrão seguro em vez de derrubar a tela inteira — já aconteceu
+  // com o Cronograma Geral e por pasta antes desse ajuste.
+  const safeCalendar = calendar && calendar.settings ? calendar : DEFAULT_CALENDAR;
   const dayWidth = DAY_WIDTH[viewMode] || DAY_WIDTH.Dia;
 
   const dayDates = useMemo(
@@ -98,7 +107,7 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
   );
 
   const topGroups = useMemo(() => buildTopGroups(dayDates, viewMode), [dayDates, viewMode]);
-  const bottomGroups = useMemo(() => buildBottomGroups(dayDates, viewMode, calendar), [dayDates, viewMode, calendar]);
+  const bottomGroups = useMemo(() => buildBottomGroups(dayDates, viewMode, safeCalendar), [dayDates, viewMode, safeCalendar]);
 
   const totalWidth = totalDays * dayWidth;
   const bodyHeight = Math.max(tasks.length * ROW_HEIGHT, ROW_HEIGHT);
@@ -162,7 +171,7 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
 
         <div className="gantt-chart-body" style={{ width: totalWidth, height: bodyHeight }}>
           {dayDates.map((d, i) => {
-            if (isBusinessDay(d, calendar)) return null;
+            if (isBusinessDay(d, safeCalendar)) return null;
             return (
               <div
                 key={'nonbiz-' + i}
@@ -191,7 +200,7 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
             const hasActual = showActual && t.actual_start_date && t.actual_end_date;
             const plannedTop = hasActual ? bar.rowTop + 4 : bar.top;
             const plannedHeight = hasActual ? 14 : BAR_HEIGHT;
-            const plannedSegments = isMilestone ? [] : buildDaySegments(t.start_date, t.end_date, dayWidth, calendar);
+            const plannedSegments = isMilestone ? [] : buildDaySegments(t.start_date, t.end_date, dayWidth, safeCalendar);
 
             let actualBarPos = null;
             let actualSegments = [];
@@ -199,7 +208,7 @@ export default function GanttChart({ tasks, dependencies, viewMode, rangeStart, 
               const aLeft = daysBetweenDates(rangeStart, t.actual_start_date) * dayWidth;
               const aWidthDays = Math.max(daysBetweenDates(t.actual_start_date, t.actual_end_date), 0);
               actualBarPos = { left: aLeft, width: aWidthDays * dayWidth, top: bar.rowTop + 4 + 14 + 2, height: 10 };
-              actualSegments = buildDaySegments(t.actual_start_date, t.actual_end_date, dayWidth, calendar);
+              actualSegments = buildDaySegments(t.actual_start_date, t.actual_end_date, dayWidth, safeCalendar);
             }
 
             return (

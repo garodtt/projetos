@@ -2,7 +2,7 @@ import { formatDate } from '../../utils/format';
 
 const DURATION_LABELS = { horas: 'Horas', dias: 'Dias', semanas: 'Semanas' };
 
-export default function CombinedScheduleTable({ tasks, projectColorById, projectNameById, onRowClick }) {
+export default function CombinedScheduleTable({ tasks, projectColorById, projectNameById, resourceSummaryByTaskId, onRowClick }) {
   return (
     <table className="schedule-table combined-schedule-table">
       <thead>
@@ -35,7 +35,7 @@ export default function CombinedScheduleTable({ tasks, projectColorById, project
             <td>{formatDate(task.end_date)}</td>
             <td>{task.progress_percent ?? 0}%</td>
             <td>{task.predecessorNames && task.predecessorNames.length ? task.predecessorNames.join(', ') : '—'}</td>
-            <td>{task.resource_names || '—'}</td>
+            <td>{resourceSummaryByTaskId?.[task.id] || '—'}</td>
           </tr>
         ))}
       </tbody>

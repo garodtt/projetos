@@ -4,6 +4,7 @@ import GanttChart from './GanttChart';
 import CombinedScheduleTable from './CombinedScheduleTable';
 import Spinner from '../Spinner';
 import { computeDateRange } from '../../utils/schedule';
+import { fetchScheduleCalendar } from '../../utils/businessDays';
 
 const PROJECT_COLOR_PALETTE = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f472b6', '#facc15', '#22d3ee', '#fb7185'];
 
@@ -11,6 +12,8 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [dependencies, setDependencies] = useState([]);
+  const [resourceSummaryByTaskId, setResourceSummaryByTaskId] = useState({});
+  const [calendar, setCalendar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('Dia');
   const [hiddenProjectIds, setHiddenProjectIds] = useState(() => new Set());
@@ -19,8 +22,12 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
     setLoading(true);
     let query = supabase.from('projects').select('id, name, folder_id').order('created_at', { ascending: true });
     if (scope.type === 'folder') query = query.eq('folder_id', scope.folderId);
-    const { data: projectsData, error: projErr } = await query;
+    const [{ data: projectsData, error: projErr }, calendarData] = await Promise.all([
+      query,
+      fetchScheduleCalendar(),
+    ]);
     if (projErr) { alert('Erro ao carregar projetos: ' + projErr.message); setLoading(false); return; }
+    setCalendar(calendarData);
 
     const projectIds = projectsData.map(p => p.id);
     if (!projectIds.length) {
@@ -29,7 +36,7 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
     }
 
     const [tasksRes, depsRes] = await Promise.all([
-      supabase.from('schedule_tasks').select('*').in('project_id', projectIds).order('position', { ascending: true }),
+      supabase.from('schedule_tasks').select('*').in('project_id', projectIds).is('deleted_at', null).order('position', { ascending: true }),
       supabase.from('schedule_dependencies').select('*'),
     ]);
     if (tasksRes.error) { alert('Erro ao carregar cronogramas: ' + tasksRes.error.message); setLoading(false); return; }
@@ -38,6 +45,23 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
     setProjects(projectsData);
     setTasks(tasksRes.data);
     setDependencies((depsRes.data || []).filter(d => taskIds.has(d.task_id) && taskIds.has(d.predecessor_id)));
+
+    if (tasksRes.data.length) {
+      const { data: resRows, error: resError } = await supabase
+        .from('schedule_task_resources').select('task_id, hours_per_day, resources(name)')
+        .in('task_id', tasksRes.data.map(t => t.id));
+      if (!resError) {
+        const summary = {};
+        (resRows || []).forEach(r => {
+          const label = (r.resources?.name || '(recurso)') + ' (' + r.hours_per_day + 'h)';
+          summary[r.task_id] = summary[r.task_id] ? summary[r.task_id] + ', ' + label : label;
+        });
+        setResourceSummaryByTaskId(summary);
+      }
+    } else {
+      setResourceSummaryByTaskId({});
+    }
+
     setLoading(false);
   }, [scope.type, scope.folderId]);
 
@@ -104,7 +128,7 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
 
   const title = scope.type === 'folder' ? 'Cronograma da pasta: ' + scope.folderName : 'Cronograma Geral';
 
-  if (loading) {
+  if (loading || !calendar) {
     return (
       <div>
         <div className="project-header"><h1>{title}</h1></div>
@@ -161,6 +185,7 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
                   tasks={visibleTasks}
                   projectColorById={projectColorById}
                   projectNameById={projectNameById}
+                  resourceSummaryByTaskId={resourceSummaryByTaskId}
                   onRowClick={onOpenProject}
                 />
               </div>
@@ -170,6 +195,7 @@ export default function CombinedScheduleView({ scope, onOpenProject }) {
                 viewMode={viewMode}
                 rangeStart={rangeStart}
                 totalDays={totalDays}
+                calendar={calendar}
               />
             </div>
           )}
