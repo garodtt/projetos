@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import LoginScreen from './components/LoginScreen';
+import UpdatePasswordScreen from './components/UpdatePasswordScreen';
 import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ProjectVersionModal from './components/ProjectVersionModal';
@@ -19,6 +20,7 @@ import { computeAllConflicts } from './utils/resources';
 export default function App() {
   // undefined = ainda checando se há sessão; null = deslogado; objeto = logado
   const [session, setSession] = useState(undefined);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [pendingCounts, setPendingCounts] = useState({});
@@ -82,7 +84,10 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // O link do e-mail de redefinição loga a pessoa temporariamente — sem
+      // esse flag, ela cairia direto no app em vez de definir a senha nova.
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
       setSession(newSession);
     });
     return () => listener.subscription.unsubscribe();
@@ -190,6 +195,10 @@ export default function App() {
 
   if (session === undefined) {
     return <div className="login-loading"><Spinner /></div>;
+  }
+
+  if (passwordRecovery) {
+    return <UpdatePasswordScreen onDone={() => setPasswordRecovery(false)} />;
   }
 
   if (!session) {
