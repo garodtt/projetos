@@ -8,7 +8,7 @@ export default function Sidebar({
   projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject,
   onOpenGlobalSchedule, onOpenFolderSchedule, isGlobalScheduleActive, activeFolderScheduleId,
   onOpenSearch, onOpenTrash, onOpenArchived, onOpenResources, onOpenConflicts,
-  resourceConflictProjectIds,
+  resourceConflictProjectIds, userEmail, onLogout,
 }) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
@@ -186,6 +186,13 @@ export default function Sidebar({
       </div>
       {archivedCount > 0 && (
         <button className="archived-link" onClick={onOpenArchived}>📦 Arquivados ({archivedCount})</button>
+      )}
+
+      {userEmail && (
+        <div className="sidebar-user-row">
+          <span className="sidebar-user-email" title={userEmail}>{userEmail}</span>
+          <button className="sidebar-logout-btn" onClick={onLogout}>Sair</button>
+        </div>
       )}
 
       {textPromptConfig && (

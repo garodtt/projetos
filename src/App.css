@@ -462,13 +462,16 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .gantt-bar-actual-segment { position:absolute; top:0; height:100%; background:#374151; }
 .gantt-bar-actual-segment.is-nonbusiness { opacity:0.35; }
 
+.login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; background:#1f2937; padding:20px; }
+.login-card { background:#fff; border-radius:8px; padding:32px; width:360px; max-width:100%; box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+.login-title { margin:0 0 4px; font-size:20px; color:#1f2937; }
+.login-subtitle { margin:0 0 20px; color:#666; font-size:14px; }
+.login-error { color:#dc2626; font-size:13px; margin:-4px 0 12px; }
+.login-submit { width:100%; margin-top:4px; }
+.login-footnote { margin:16px 0 0; color:#888; font-size:12px; text-align:center; }
+.login-loading { min-height:100vh; display:flex; align-items:center; justify-content:center; background:#1f2937; }
 
-
-
-
-
-
-
-
-
-
+.sidebar-user-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:12px; margin-top:8px; border-top:1px solid #374151; }
+.sidebar-user-email { font-size:12px; color:#9ca3af; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sidebar-logout-btn { background:none; border:none; cursor:pointer; font-size:12px; color:#9ca3af; padding:4px 8px; border-radius:6px; flex-shrink:0; }
+.sidebar-logout-btn:hover { background:#374151; color:#fff; }

@@ -2,6 +2,11 @@
 -- Gestão de Projetos — schema completo
 -- Rode este arquivo inteiro em um projeto Supabase NOVO e VAZIO.
 -- Não execute isso em um banco que já tenha essas tabelas.
+--
+-- Login agora é obrigatório (políticas exigem auth.role() =
+-- 'authenticated'). Depois de rodar este arquivo, crie pelo menos um
+-- usuário em Authentication → Users antes de usar o app — sem isso,
+-- ninguém consegue entrar.
 -- ============================================================
 
 create extension if not exists "pgcrypto";
@@ -327,31 +332,40 @@ alter table public.version_pending_items enable row level security;
 alter table public.version_bumps enable row level security;
 alter table public.version_bump_items enable row level security;
 
-create policy "allow all - folders" on public.folders for all using (true) with check (true);
-create policy "allow all - projects" on public.projects for all using (true) with check (true);
-create policy "allow all - kanban_columns" on public.kanban_columns for all using (true) with check (true);
-create policy "allow all - versions" on public.versions for all using (true) with check (true);
-create policy "allow all - activities" on public.activities for all using (true) with check (true);
-create policy "allow all - attachments" on public.attachments for all using (true) with check (true);
-create policy "allow all - panel_items" on public.panel_items for all using (true) with check (true);
-create policy "allow all - schedule_tasks" on public.schedule_tasks for all using (true) with check (true);
-create policy "allow all - schedule_dependencies" on public.schedule_dependencies for all using (true) with check (true);
-create policy "allow all - resources" on public.resources for all using (true) with check (true);
-create policy "allow all - schedule_task_resources" on public.schedule_task_resources for all using (true) with check (true);
-create policy "allow all - schedule_settings" on public.schedule_settings for all using (true) with check (true);
-create policy "allow all - holidays" on public.holidays for all using (true) with check (true);
-create policy "allow all - version_pending_items" on public.version_pending_items for all using (true) with check (true);
-create policy "allow all - version_bumps" on public.version_bumps for all using (true) with check (true);
-create policy "allow all - version_bump_items" on public.version_bump_items for all using (true) with check (true);
+create policy "logado - folders" on public.folders for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - projects" on public.projects for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - kanban_columns" on public.kanban_columns for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - versions" on public.versions for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - activities" on public.activities for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - attachments" on public.attachments for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - panel_items" on public.panel_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - schedule_tasks" on public.schedule_tasks for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - schedule_dependencies" on public.schedule_dependencies for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - resources" on public.resources for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - schedule_task_resources" on public.schedule_task_resources for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - schedule_settings" on public.schedule_settings for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - holidays" on public.holidays for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - version_pending_items" on public.version_pending_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - version_bumps" on public.version_bumps for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "logado - version_bump_items" on public.version_bump_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ------------------------------------------------------------
 -- Storage — bucket para anexos e arquivos do painel
+--
+-- ATENÇÃO: o bucket continua "public" (por compatibilidade — a leitura
+-- hoje é feita com getPublicUrl, não signed URL). As políticas abaixo já
+-- exigem login pra enviar/apagar arquivo pela API, mas um arquivo cuja URL
+-- pública alguém já tenha continua acessível sem login, porque bucket
+-- público serve o arquivo direto, sem passar pela política de "select"
+-- daqui. Fechar esse último ponto exige trocar o bucket pra privado e as 3
+-- telas que usam getPublicUrl (Atividades, Kanban, Painel) para signed URL
+-- — deixei de fora dessa rodada por ser bem mais invasivo.
 -- ------------------------------------------------------------
 insert into storage.buckets (id, name, public)
 values ('attachments', 'attachments', true)
 on conflict (id) do nothing;
 
 create policy "leitura - attachments" on storage.objects for select using (bucket_id = 'attachments');
-create policy "upload - attachments" on storage.objects for insert with check (bucket_id = 'attachments');
-create policy "update - attachments" on storage.objects for update using (bucket_id = 'attachments');
-create policy "delete - attachments" on storage.objects for delete using (bucket_id = 'attachments');
+create policy "upload - attachments" on storage.objects for insert with check (bucket_id = 'attachments' and auth.role() = 'authenticated');
+create policy "update - attachments" on storage.objects for update using (bucket_id = 'attachments' and auth.role() = 'authenticated');
+create policy "delete - attachments" on storage.objects for delete using (bucket_id = 'attachments' and auth.role() = 'authenticated');

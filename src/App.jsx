@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
+import LoginScreen from './components/LoginScreen';
 import Sidebar from './components/Sidebar';
 import ProjectModal from './components/ProjectModal';
 import ProjectVersionModal from './components/ProjectVersionModal';
@@ -16,6 +17,8 @@ import Spinner from './components/Spinner';
 import { computeAllConflicts } from './utils/resources';
 
 export default function App() {
+  // undefined = ainda checando se há sessão; null = deslogado; objeto = logado
+  const [session, setSession] = useState(undefined);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [pendingCounts, setPendingCounts] = useState({});
@@ -78,10 +81,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
     loadProjects();
     loadPendingCounts();
     refreshConflicts();
-  }, [loadProjects, loadPendingCounts, refreshConflicts]);
+  }, [session, loadProjects, loadPendingCounts, refreshConflicts]);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+  }
 
   async function refreshCurrentProject() {
     if (!currentProjectId) return;
@@ -172,6 +188,14 @@ export default function App() {
     setActiveTab('schedule');
   }
 
+  if (session === undefined) {
+    return <div className="login-loading"><Spinner /></div>;
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -191,6 +215,8 @@ export default function App() {
         onOpenArchived={() => setArchivedModalOpen(true)}
         onOpenResources={() => setResourcesModalOpen(true)}
         onOpenConflicts={() => setConflictsModalOpen(true)}
+        userEmail={session.user.email}
+        onLogout={handleLogout}
       />
 
       <main className="content">
