@@ -2,20 +2,34 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 
-export default function ProjectModal({ mode, project, initialFolderId, onClose, onSaved, onDeleted }) {
+export default function ProjectModal({ mode, project, initialFolderId, currentUserRole, currentUserId, onClose, onSaved, onDeleted }) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
+  const [availableAreas, setAvailableAreas] = useState([]);
   const [form, setForm] = useState({
     name: project?.name || '',
     description: project?.description || '',
     objectives: project?.objectives || '',
     scope: project?.scope || '',
     folder_id: project?.folder_id || initialFolderId || '',
+    area_id: project?.area_id || '',
     is_archived: project?.is_archived || false,
   });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [stampEmails, setStampEmails] = useState({});
+
+  useEffect(() => {
+    if (mode !== 'edit' || !project) return;
+    const ids = [project.created_by, project.updated_by].filter(Boolean);
+    if (!ids.length) return;
+    supabase.from('user_profiles').select('id, email').in('id', ids).then(({ data }) => {
+      const map = {};
+      (data || []).forEach(p => { map[p.id] = p.email; });
+      setStampEmails(map);
+    });
+  }, [mode, project]);
 
   useEffect(() => {
     supabase.from('folders').select('*').is('deleted_at', null).order('name', { ascending: true }).then(({ data, error }) => {
@@ -23,6 +37,33 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
       setFolders(data);
     });
   }, []);
+
+  useEffect(() => {
+    async function loadAreas() {
+      const { data: allAreas, error } = await supabase.from('areas').select('*').order('name', { ascending: true });
+      if (error) { console.error(error); return; }
+
+      if (currentUserRole === 'admin') {
+        setAvailableAreas(allAreas);
+      } else {
+        const { data: myAreas } = await supabase.from('user_areas').select('area_id').eq('user_id', currentUserId);
+        const myAreaIds = new Set((myAreas || []).map(ua => ua.area_id));
+        const mine = allAreas.filter(a => myAreaIds.has(a.id));
+        setAvailableAreas(mine);
+      }
+    }
+    loadAreas();
+  }, [currentUserRole, currentUserId]);
+
+  // Assim que as áreas disponíveis chegam, se ainda não tem uma escolhida
+  // (projeto novo), pré-seleciona a primeira — evita esquecer o campo em
+  // branco e cair numa área que a própria pessoa não enxerga depois.
+  useEffect(() => {
+    if (mode !== 'edit' && !form.area_id && availableAreas.length) {
+      setForm(f => ({ ...f, area_id: f.area_id || availableAreas[0].id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableAreas]);
 
   function update(field, value) {
     setForm(f => ({ ...f, [field]: value }));
@@ -35,9 +76,11 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
       objectives: form.objectives.trim(),
       scope: form.scope.trim(),
       folder_id: form.folder_id || null,
+      area_id: form.area_id || null,
       is_archived: form.is_archived,
     };
     if (!payload.name) { alert('Informe o nome do projeto'); return; }
+    if (!payload.area_id) { alert('Escolha uma área — sem área, o projeto fica visível só pra administradores.'); return; }
 
     let result;
     if (mode === 'edit') {
@@ -65,6 +108,12 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
     <div className="overlay">
       <div className="modal">
         <h3>{mode === 'edit' ? 'Resumo do projeto' : 'Novo Projeto'}</h3>
+        {mode === 'edit' && (project.created_by || project.updated_by) && (
+          <p className="stamp-info">
+            {project.created_by && <>Criado por {stampEmails[project.created_by] || '—'}. </>}
+            {project.updated_by && <>Última alteração por {stampEmails[project.updated_by] || '—'}.</>}
+          </p>
+        )}
         <label>Nome do Projeto</label>
         <input value={form.name} onChange={e => update('name', e.target.value)} />
         <label>Pasta (opcional)</label>
@@ -74,6 +123,18 @@ export default function ProjectModal({ mode, project, initialFolderId, onClose, 
             <option key={f.id} value={f.id}>{f.name}</option>
           ))}
         </select>
+        <label>Área</label>
+        <select value={form.area_id} onChange={e => update('area_id', e.target.value)}>
+          <option value="">Selecione uma área</option>
+          {availableAreas.map(a => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
+        {!availableAreas.length && (
+          <p className="version-column-hint">
+            Você ainda não tem nenhuma área atribuída — peça pra um administrador te atribuir uma em ⚙️ Administração antes de criar um projeto.
+          </p>
+        )}
         <label>Descrição</label>
         <textarea rows={2} value={form.description} onChange={e => update('description', e.target.value)} />
         <label>Objetivos</label>

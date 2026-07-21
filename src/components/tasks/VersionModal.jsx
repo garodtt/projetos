@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../Toast';
 import AttachmentsField from '../AttachmentsField';
@@ -17,6 +17,18 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   const [complexity, setComplexity] = useState(version?.complexity || 'media');
   const [attachments, setAttachments] = useState(version?.attachments || []);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [stampEmails, setStampEmails] = useState({});
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const ids = [version.created_by, version.updated_by].filter(Boolean);
+    if (!ids.length) return;
+    supabase.from('user_profiles').select('id, email').in('id', ids).then(({ data }) => {
+      const map = {};
+      (data || []).forEach(p => { map[p.id] = p.email; });
+      setStampEmails(map);
+    });
+  }, [isEditing, version]);
 
   async function handleAddAttachment(file) {
     setUploadingAttachment(true);
@@ -100,6 +112,12 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
     <div className="overlay">
       <div className="modal">
         <h3>{isEditing ? 'Editar item' : 'Novo item'}</h3>
+        {isEditing && (version.created_by || version.updated_by) && (
+          <p className="stamp-info">
+            {version.created_by && <>Criado por {stampEmails[version.created_by] || '—'}. </>}
+            {version.updated_by && <>Última alteração por {stampEmails[version.updated_by] || '—'}.</>}
+          </p>
+        )}
         <label>Título</label>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título da tarefa" />
         <div className="row">

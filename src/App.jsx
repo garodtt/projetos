@@ -11,6 +11,7 @@ import ArchivedProjectsModal from './components/ArchivedProjectsModal';
 import ResourcesModal from './components/ResourcesModal';
 import ConflictsModal from './components/ConflictsModal';
 import AdminPanelModal from './components/AdminPanelModal';
+import AuditLogModal from './components/AuditLogModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
@@ -41,6 +42,7 @@ export default function App() {
   const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
   const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [auditLogOpen, setAuditLogOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState(null);
 
   const [mainView, setMainView] = useState('project');
@@ -235,6 +237,7 @@ export default function App() {
         onOpenConflicts={() => setConflictsModalOpen(true)}
         isAdmin={currentUserRole === 'admin'}
         onOpenAdminPanel={() => setAdminPanelOpen(true)}
+        onOpenAuditLog={() => setAuditLogOpen(true)}
         userEmail={session.user.email}
         onLogout={handleLogout}
       />
@@ -305,6 +308,8 @@ export default function App() {
           mode={projectModalMode}
           project={projectModalMode === 'edit' ? currentProject : null}
           initialFolderId={initialFolderId}
+          currentUserRole={currentUserRole}
+          currentUserId={session.user.id}
           onClose={() => setProjectModalOpen(false)}
           onSaved={handleProjectSaved}
           onDeleted={handleProjectDeleted}
@@ -353,6 +358,10 @@ export default function App() {
 
       {adminPanelOpen && (
         <AdminPanelModal onClose={() => setAdminPanelOpen(false)} />
+      )}
+
+      {auditLogOpen && (
+        <AuditLogModal onClose={() => setAuditLogOpen(false)} />
       )}
     </div>
   );

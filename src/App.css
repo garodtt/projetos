@@ -401,8 +401,10 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .toast-action-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer; margin-left: 4px; }
 .toast-action-btn:hover { background: rgba(255,255,255,0.15); }
 
-.sidebar-utility-row { display: flex; gap: 6px; margin-top: 4px; }
-.sidebar-utility-btn { flex: 1; padding: 7px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; background: #374151; color: #d1d5db; }
+.sidebar-tools-toggle { width: 100%; text-align: left; padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; background: none; color: #9ca3af; margin-top: 4px; }
+.sidebar-tools-toggle:hover { background: #374151; color: #fff; }
+.sidebar-utility-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.sidebar-utility-btn { width: 100%; text-align: left; padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; background: #374151; color: #d1d5db; }
 .sidebar-utility-btn:hover { background: #4b5563; color: #fff; }
 
 .archived-link { margin: 8px 0 0; padding: 8px; border: none; border-radius: 6px; background: none; color: #9ca3af; cursor: pointer; font-size: 12px; text-align: left; }
@@ -479,6 +481,15 @@ button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
 .sidebar-logout-btn:hover { background:#374151; color:#fff; }
 
 .admin-section-title { margin:20px 0 8px; font-size:14px; color:#1f2937; }
+.stamp-info { margin:-4px 0 12px; font-size:12px; color:#888; }
+.audit-log-list { margin-top:10px; max-height:50vh; overflow-y:auto; border:1px solid #eee; border-radius:8px; }
+.audit-log-row { border-bottom:1px solid #eee; padding:8px 10px; }
+.audit-log-row:last-child { border-bottom:none; }
+.audit-log-row-main { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; }
+.audit-log-when { color:#888; font-size:12px; white-space:nowrap; }
+.audit-log-who { color:#2563eb; font-weight:600; white-space:nowrap; }
+.audit-log-what { flex:1; min-width:200px; }
+.audit-log-detail { background:#f4f5f7; border-radius:6px; padding:8px; margin-top:6px; font-size:11px; max-height:240px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
 .admin-areas-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
 .admin-area-chip { display:inline-flex; align-items:center; gap:4px; background:#eef2f7; border-radius:14px; padding:4px 10px; font-size:13px; color:#1f2937; }
 .admin-area-chip button { background:none; border:none; cursor:pointer; color:#666; font-size:12px; padding:0 2px; line-height:1; }

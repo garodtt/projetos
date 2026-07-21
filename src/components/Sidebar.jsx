@@ -8,13 +8,14 @@ export default function Sidebar({
   projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject,
   onOpenGlobalSchedule, onOpenFolderSchedule, isGlobalScheduleActive, activeFolderScheduleId,
   onOpenSearch, onOpenTrash, onOpenArchived, onOpenResources, onOpenConflicts,
-  resourceConflictProjectIds, isAdmin, onOpenAdminPanel, userEmail, onLogout,
+  resourceConflictProjectIds, isAdmin, onOpenAdminPanel, onOpenAuditLog, userEmail, onLogout,
 }) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
   const [foldersLoading, setFoldersLoading] = useState(true);
   const [expanded, setExpanded] = useState(() => new Set());
   const [textPromptConfig, setTextPromptConfig] = useState(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const loadFolders = useCallback(async () => {
     const { data, error } = await supabase.from('folders').select('*').is('deleted_at', null).order('created_at', { ascending: false });
@@ -166,17 +167,24 @@ export default function Sidebar({
         >
           📅 Cronograma Geral
         </button>
-        <div className="sidebar-utility-row">
-          <button className="sidebar-utility-btn" onClick={onOpenSearch}>🔍 Buscar</button>
-          <button className="sidebar-utility-btn" onClick={onOpenTrash}>🗑️ Lixeira</button>
-        </div>
-        <div className="sidebar-utility-row">
-          <button className="sidebar-utility-btn" onClick={onOpenResources}>🧑‍💼 Recursos</button>
-          <button className="sidebar-utility-btn" onClick={onOpenConflicts}>⚠ Conflitos</button>
-          {isAdmin && (
-            <button className="sidebar-utility-btn" onClick={onOpenAdminPanel}>⚙️ Administração</button>
-          )}
-        </div>
+            <button className="sidebar-utility-btn" onClick={onOpenSearch}>🔍 Buscar</button>
+
+<button type="button" className="sidebar-tools-toggle" onClick={() => setToolsOpen(o => !o)}>
+  {toolsOpen ? '▾' : '▸'} Mais opções
+</button>
+{toolsOpen && (
+  <div className="sidebar-utility-list">
+    <button className="sidebar-utility-btn" onClick={onOpenTrash}>🗑️ Lixeira</button>
+    <button className="sidebar-utility-btn" onClick={onOpenResources}>🧑‍💼 Recursos</button>
+    <button className="sidebar-utility-btn" onClick={onOpenConflicts}>⚠ Conflitos</button>
+    {isAdmin && (
+      <>
+        <button className="sidebar-utility-btn" onClick={onOpenAdminPanel}>⚙️ Administração</button>
+        <button className="sidebar-utility-btn" onClick={onOpenAuditLog}>📜 Histórico</button>
+      </>
+    )}
+  </div>
+)}
       </div>
       <div className="project-list">
         {(loading || foldersLoading) ? (
