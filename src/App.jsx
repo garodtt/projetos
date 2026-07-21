@@ -10,6 +10,7 @@ import TrashModal from './components/TrashModal';
 import ArchivedProjectsModal from './components/ArchivedProjectsModal';
 import ResourcesModal from './components/ResourcesModal';
 import ConflictsModal from './components/ConflictsModal';
+import AdminPanelModal from './components/AdminPanelModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
@@ -39,6 +40,8 @@ export default function App() {
   const [archivedModalOpen, setArchivedModalOpen] = useState(false);
   const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
   const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
 
   const [mainView, setMainView] = useState('project');
   const [combinedScope, setCombinedScope] = useState(null);
@@ -92,6 +95,12 @@ export default function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session) { setCurrentUserRole(null); return; }
+    supabase.from('user_profiles').select('role').eq('id', session.user.id).single()
+      .then(({ data, error }) => setCurrentUserRole(error ? 'usuario' : data.role));
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -224,6 +233,8 @@ export default function App() {
         onOpenArchived={() => setArchivedModalOpen(true)}
         onOpenResources={() => setResourcesModalOpen(true)}
         onOpenConflicts={() => setConflictsModalOpen(true)}
+        isAdmin={currentUserRole === 'admin'}
+        onOpenAdminPanel={() => setAdminPanelOpen(true)}
         userEmail={session.user.email}
         onLogout={handleLogout}
       />
@@ -338,6 +349,10 @@ export default function App() {
           onClose={() => setConflictsModalOpen(false)}
           onOpenProject={handleOpenProjectFromConflicts}
         />
+      )}
+
+      {adminPanelOpen && (
+        <AdminPanelModal onClose={() => setAdminPanelOpen(false)} />
       )}
     </div>
   );

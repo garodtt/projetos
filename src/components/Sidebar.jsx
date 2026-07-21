@@ -8,7 +8,7 @@ export default function Sidebar({
   projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject,
   onOpenGlobalSchedule, onOpenFolderSchedule, isGlobalScheduleActive, activeFolderScheduleId,
   onOpenSearch, onOpenTrash, onOpenArchived, onOpenResources, onOpenConflicts,
-  resourceConflictProjectIds, userEmail, onLogout,
+  resourceConflictProjectIds, isAdmin, onOpenAdminPanel, userEmail, onLogout,
 }) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
@@ -173,6 +173,9 @@ export default function Sidebar({
         <div className="sidebar-utility-row">
           <button className="sidebar-utility-btn" onClick={onOpenResources}>🧑‍💼 Recursos</button>
           <button className="sidebar-utility-btn" onClick={onOpenConflicts}>⚠ Conflitos</button>
+          {isAdmin && (
+            <button className="sidebar-utility-btn" onClick={onOpenAdminPanel}>⚙️ Administração</button>
+          )}
         </div>
       </div>
       <div className="project-list">
