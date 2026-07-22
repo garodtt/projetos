@@ -4,6 +4,7 @@ import { useToast } from '../Toast';
 import AttachmentsField from '../AttachmentsField';
 import { COMPLEXITY_OPTIONS } from '../../constants';
 import { registerVersionColumnArrival } from '../../utils/versioning';
+import { useModalShortcuts } from '../../hooks/useModalShortcuts';
 
 export default function VersionModal({ projectId, columnId, version, nextPosition, isVersionColumn, onClose, onSaved }) {
   const showToast = useToast();
@@ -12,12 +13,30 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
   const [requester, setRequester] = useState(version?.requester_name || '');
   const [assignee, setAssignee] = useState(version?.assignee_name || '');
   const [date, setDate] = useState(version?.change_date || '');
+  const [dueDate, setDueDate] = useState(version?.due_date || '');
   const [description, setDescription] = useState(version?.description || '');
   const [priority, setPriority] = useState(version?.priority || 'normal');
   const [complexity, setComplexity] = useState(version?.complexity || 'media');
+  const [checklist, setChecklist] = useState(version?.checklist || []);
+  const [newChecklistItem, setNewChecklistItem] = useState('');
   const [attachments, setAttachments] = useState(version?.attachments || []);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [stampEmails, setStampEmails] = useState({});
+
+  function addChecklistItem() {
+    const text = newChecklistItem.trim();
+    if (!text) return;
+    setChecklist(prev => [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2), text, done: false }]);
+    setNewChecklistItem('');
+  }
+  function toggleChecklistItem(id) {
+    setChecklist(prev => prev.map(item => (item.id === id ? { ...item, done: !item.done } : item)));
+  }
+  function removeChecklistItem(id) {
+    setChecklist(prev => prev.filter(item => item.id !== id));
+  }
+
+  useModalShortcuts(onClose, handleSave);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -71,7 +90,7 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
     const desc = description.trim();
     if (!finalTitle || !requester_name) { alert('Preencha o título e quem solicitou.'); return; }
 
-    const payload = { title: finalTitle, requester_name, assignee_name: assignee_name || null, change_date, description: desc, priority, complexity };
+    const payload = { title: finalTitle, requester_name, assignee_name: assignee_name || null, change_date, due_date: dueDate || null, description: desc, priority, complexity, checklist };
     let result;
     if (isEditing) {
       result = await supabase.from('versions').update(payload).eq('id', version.id);
@@ -136,6 +155,10 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
             <input type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
           <div>
+            <label>Prazo (opcional)</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+          </div>
+          <div>
             <label>Complexidade</label>
             <select value={complexity} onChange={e => setComplexity(e.target.value)}>
               {COMPLEXITY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -151,6 +174,29 @@ export default function VersionModal({ projectId, columnId, version, nextPositio
         </div>
         <label>Descrição</label>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="O que foi alterado..." />
+
+        <label>Checklist (opcional)</label>
+        {checklist.length > 0 && (
+          <div className="version-checklist">
+            {checklist.map(item => (
+              <div key={item.id} className="version-checklist-item">
+                <input type="checkbox" checked={item.done} onChange={() => toggleChecklistItem(item.id)} />
+                <span className={item.done ? 'version-checklist-text done' : 'version-checklist-text'}>{item.text}</span>
+                <button type="button" className="version-checklist-remove" onClick={() => removeChecklistItem(item.id)} title="Remover item">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="version-checklist-add-row">
+          <input
+            type="text"
+            placeholder="Novo item da checklist"
+            value={newChecklistItem}
+            onChange={e => setNewChecklistItem(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addChecklistItem(); } }}
+          />
+          <button type="button" className="secondary small" onClick={addChecklistItem}>+ Item</button>
+        </div>
 
         <AttachmentsField
           attachments={attachments}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
+import { useModalShortcuts } from '../hooks/useModalShortcuts';
 
 export default function ProjectModal({ mode, project, initialFolderId, currentUserRole, currentUserId, onClose, onSaved, onDeleted }) {
   const showToast = useToast();
@@ -19,6 +20,8 @@ export default function ProjectModal({ mode, project, initialFolderId, currentUs
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [stampEmails, setStampEmails] = useState({});
+
+  useModalShortcuts(confirmingDelete ? null : onClose, confirmingDelete ? null : handleSave);
 
   useEffect(() => {
     if (mode !== 'edit' || !project) return;

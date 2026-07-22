@@ -164,11 +164,13 @@ create table public.versions (
   requester_name text not null,
   assignee_name text,
   change_date date not null default current_date,
+  due_date date,
   description text,
   priority text not null default 'normal' check (priority in ('normal', 'urgente')),
   complexity text not null default 'media' check (complexity in ('minima', 'media', 'grande')),
   position integer not null default 0,
   counted_in_version boolean not null default false,
+  checklist jsonb not null default '[]'::jsonb,
   deleted_at timestamptz,
   created_by uuid references public.user_profiles(id) on delete set null,
   updated_by uuid references public.user_profiles(id) on delete set null,
@@ -447,6 +449,7 @@ create table public.audit_log (
   id uuid primary key default gen_random_uuid(),
   table_name text not null,
   record_id uuid,
+  project_id uuid references public.projects(id) on delete cascade,
   action text not null check (action in ('insert', 'update', 'delete')),
   user_id uuid references public.user_profiles(id) on delete set null,
   user_email text,
@@ -456,6 +459,7 @@ create table public.audit_log (
 
 create index on public.audit_log(table_name);
 create index on public.audit_log(record_id);
+create index on public.audit_log(project_id);
 create index on public.audit_log(created_at);
 
 create or replace function public.log_audit_change()
@@ -465,6 +469,8 @@ declare
   v_user_email text;
   v_record_id uuid;
   v_changed jsonb;
+  v_row jsonb;
+  v_project_id uuid;
 begin
   v_user_id := auth.uid();
   select email into v_user_email from public.user_profiles where id = v_user_id;
@@ -472,16 +478,27 @@ begin
   if TG_OP = 'DELETE' then
     v_record_id := old.id;
     v_changed := to_jsonb(old);
+    v_row := to_jsonb(old);
   elsif TG_OP = 'UPDATE' then
     v_record_id := new.id;
     v_changed := jsonb_build_object('before', to_jsonb(old), 'after', to_jsonb(new));
+    v_row := to_jsonb(new);
   else
     v_record_id := new.id;
     v_changed := to_jsonb(new);
+    v_row := to_jsonb(new);
   end if;
 
-  insert into public.audit_log (table_name, record_id, action, user_id, user_email, changed_fields)
-  values (TG_TABLE_NAME, v_record_id, lower(TG_OP), v_user_id, v_user_email, v_changed);
+  -- projects é o próprio projeto (project_id = id dele); as outras 4
+  -- tabelas rastreadas já têm project_id como coluna direta.
+  if TG_TABLE_NAME = 'projects' then
+    v_project_id := v_record_id;
+  else
+    v_project_id := (v_row->>'project_id')::uuid;
+  end if;
+
+  insert into public.audit_log (table_name, record_id, project_id, action, user_id, user_email, changed_fields)
+  values (TG_TABLE_NAME, v_record_id, v_project_id, lower(TG_OP), v_user_id, v_user_email, v_changed);
 
   if TG_OP = 'DELETE' then
     return old;

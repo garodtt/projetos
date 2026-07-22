@@ -11,6 +11,8 @@ export default function AdminPanelModal({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [newAreaName, setNewAreaName] = useState('');
   const [areaPopupForId, setAreaPopupForId] = useState(null);
+  const [selectedUserIds, setSelectedUserIds] = useState(() => new Set());
+  const [bulkAreaId, setBulkAreaId] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,6 +46,37 @@ export default function AdminPanelModal({ onClose }) {
     const names = areas.filter(a => ids.has(a.id)).map(a => a.name);
     if (names.length <= 2) return names.join(', ');
     return names.slice(0, 2).join(', ') + ' +' + (names.length - 2);
+  }
+
+  const selectableProfiles = useMemo(() => profiles.filter(p => p.role !== 'admin'), [profiles]);
+
+  function toggleSelectUser(id) {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedUserIds(prev =>
+      (prev.size === selectableProfiles.length ? new Set() : new Set(selectableProfiles.map(p => p.id)))
+    );
+  }
+
+  async function handleBulkAssignArea() {
+    if (!bulkAreaId || !selectedUserIds.size) return;
+    const rows = Array.from(selectedUserIds).map(userId => ({ user_id: userId, area_id: bulkAreaId }));
+    const { error } = await supabase.from('user_areas').upsert(rows, { onConflict: 'user_id,area_id', ignoreDuplicates: true });
+    if (error) { alert('Erro ao atribuir área em lote: ' + error.message); return; }
+    setUserAreas(prev => {
+      const existingKeys = new Set(prev.map(ua => ua.user_id + '|' + ua.area_id));
+      const newOnes = rows.filter(r => !existingKeys.has(r.user_id + '|' + r.area_id));
+      return [...prev, ...newOnes];
+    });
+    showToast('Área atribuída a ' + selectedUserIds.size + ' usuário(s)');
+    setSelectedUserIds(new Set());
   }
 
   async function handleRoleChange(profile, newRole) {
@@ -142,12 +175,20 @@ export default function AdminPanelModal({ onClose }) {
 
         <h4 className="admin-section-title">Usuários</h4>
         <p className="version-column-hint">
-          Papel <strong>Admin</strong> enxerga todas as áreas automaticamente, então não tem seletor de área pra esse papel.
+          Papel <strong>Admin</strong> enxerga todas as áreas automaticamente, então não tem seletor de área pra esse papel — nem entra na seleção em lote abaixo.
         </p>
         <div className="admin-users-table-wrap">
           <table className="admin-users-table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectableProfiles.length > 0 && selectedUserIds.size === selectableProfiles.length}
+                    onChange={toggleSelectAll}
+                    title="Selecionar todos"
+                  />
+                </th>
                 <th>E-mail</th>
                 <th>Papel</th>
                 <th>Áreas</th>
@@ -156,6 +197,14 @@ export default function AdminPanelModal({ onClose }) {
             <tbody>
               {profiles.map(profile => (
                 <tr key={profile.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedUserIds.has(profile.id)}
+                      disabled={profile.role === 'admin'}
+                      onChange={() => toggleSelectUser(profile.id)}
+                    />
+                  </td>
                   <td>{profile.email}</td>
                   <td>
                     <select value={profile.role} onChange={e => handleRoleChange(profile, e.target.value)}>
@@ -180,6 +229,21 @@ export default function AdminPanelModal({ onClose }) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="admin-bulk-assign-row">
+          <select value={bulkAreaId} onChange={e => setBulkAreaId(e.target.value)}>
+            <option value="">Escolha uma área…</option>
+            {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className="secondary small"
+            onClick={handleBulkAssignArea}
+            disabled={!bulkAreaId || !selectedUserIds.size}
+          >
+            Atribuir aos {selectedUserIds.size} selecionado(s)
+          </button>
         </div>
 
         <div className="actions">

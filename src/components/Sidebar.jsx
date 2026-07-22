@@ -8,7 +8,7 @@ export default function Sidebar({
   projects, loading, pendingCounts, currentProjectId, onSelect, onNewProject,
   onOpenGlobalSchedule, onOpenFolderSchedule, isGlobalScheduleActive, activeFolderScheduleId,
   onOpenSearch, onOpenTrash, onOpenArchived, onOpenResources, onOpenConflicts,
-  resourceConflictProjectIds, isAdmin, onOpenAdminPanel, onOpenAuditLog, userEmail, onLogout,
+  resourceConflictProjectIds, isAdmin, onOpenAdminPanel, userEmail, onLogout, onOpenMyAccount,
 }) {
   const showToast = useToast();
   const [folders, setFolders] = useState([]);
@@ -167,24 +167,21 @@ export default function Sidebar({
         >
           📅 Cronograma Geral
         </button>
-            <button className="sidebar-utility-btn" onClick={onOpenSearch}>🔍 Buscar</button>
+        <button className="sidebar-utility-btn" onClick={onOpenSearch}>🔍 Buscar</button>
 
-<button type="button" className="sidebar-tools-toggle" onClick={() => setToolsOpen(o => !o)}>
-  {toolsOpen ? '▾' : '▸'} Mais opções
-</button>
-{toolsOpen && (
-  <div className="sidebar-utility-list">
-    <button className="sidebar-utility-btn" onClick={onOpenTrash}>🗑️ Lixeira</button>
-    <button className="sidebar-utility-btn" onClick={onOpenResources}>🧑‍💼 Recursos</button>
-    <button className="sidebar-utility-btn" onClick={onOpenConflicts}>⚠ Conflitos</button>
-    {isAdmin && (
-      <>
-        <button className="sidebar-utility-btn" onClick={onOpenAdminPanel}>⚙️ Administração</button>
-        <button className="sidebar-utility-btn" onClick={onOpenAuditLog}>📜 Histórico</button>
-      </>
-    )}
-  </div>
-)}
+        <button type="button" className="sidebar-tools-toggle" onClick={() => setToolsOpen(o => !o)}>
+          {toolsOpen ? '▾' : '▸'} Mais opções
+        </button>
+        {toolsOpen && (
+          <div className="sidebar-utility-list">
+            <button className="sidebar-utility-btn" onClick={onOpenTrash}>🗑️ Lixeira</button>
+            <button className="sidebar-utility-btn" onClick={onOpenResources}>🧑‍💼 Recursos</button>
+            <button className="sidebar-utility-btn" onClick={onOpenConflicts}>⚠ Conflitos</button>
+            {isAdmin && (
+              <button className="sidebar-utility-btn" onClick={onOpenAdminPanel}>⚙️ Administração</button>
+            )}
+          </div>
+        )}
       </div>
       <div className="project-list">
         {(loading || foldersLoading) ? (
@@ -201,7 +198,9 @@ export default function Sidebar({
 
       {userEmail && (
         <div className="sidebar-user-row">
-          <span className="sidebar-user-email" title={userEmail}>{userEmail}</span>
+          <button className="sidebar-user-email" title="Minha conta" onClick={onOpenMyAccount}>
+            👤 <span className="sidebar-user-email-text">{userEmail}</span>
+          </button>
           <button className="sidebar-logout-btn" onClick={onLogout}>Sair</button>
         </div>
       )}

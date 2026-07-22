@@ -11,7 +11,8 @@ import ArchivedProjectsModal from './components/ArchivedProjectsModal';
 import ResourcesModal from './components/ResourcesModal';
 import ConflictsModal from './components/ConflictsModal';
 import AdminPanelModal from './components/AdminPanelModal';
-import AuditLogModal from './components/AuditLogModal';
+import ProjectHistoryTab from './components/ProjectHistoryTab';
+import MyAccountModal from './components/MyAccountModal';
 import ActivitiesTab from './components/activities/ActivitiesTab';
 import TasksTab from './components/tasks/TasksTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
@@ -42,7 +43,7 @@ export default function App() {
   const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
   const [conflictsModalOpen, setConflictsModalOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [auditLogOpen, setAuditLogOpen] = useState(false);
+  const [myAccountOpen, setMyAccountOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState(null);
 
   const [mainView, setMainView] = useState('project');
@@ -237,9 +238,9 @@ export default function App() {
         onOpenConflicts={() => setConflictsModalOpen(true)}
         isAdmin={currentUserRole === 'admin'}
         onOpenAdminPanel={() => setAdminPanelOpen(true)}
-        onOpenAuditLog={() => setAuditLogOpen(true)}
         userEmail={session.user.email}
         onLogout={handleLogout}
+        onOpenMyAccount={() => setMyAccountOpen(true)}
       />
 
       <main className="content">
@@ -276,6 +277,9 @@ export default function App() {
               <button className={'tab-btn' + (activeTab === 'activities' ? ' active' : '')} onClick={() => setActiveTab('activities')}>Atividades</button>
               <button className={'tab-btn' + (activeTab === 'kanban' ? ' active' : '')} onClick={() => setActiveTab('kanban')}>Tarefas</button>
               <button className={'tab-btn' + (activeTab === 'schedule' ? ' active' : '')} onClick={() => setActiveTab('schedule')}>Cronograma</button>
+              {currentUserRole === 'admin' && (
+                <button className={'tab-btn' + (activeTab === 'history' ? ' active' : '')} onClick={() => setActiveTab('history')}>📜 Histórico</button>
+              )}
             </div>
 
             <div className={'panel' + (activeTab === 'activities' ? ' active' : '')}>
@@ -299,6 +303,11 @@ export default function App() {
             <div className={'panel' + (activeTab === 'schedule' ? ' active' : '')}>
               <ScheduleTab projectId={currentProjectId} projectName={currentProject.name} onResourcesChanged={refreshConflicts} />
             </div>
+            {currentUserRole === 'admin' && (
+              <div className={'panel' + (activeTab === 'history' ? ' active' : '')}>
+                <ProjectHistoryTab projectId={currentProjectId} />
+              </div>
+            )}
           </>
         )}
       </main>
@@ -360,8 +369,8 @@ export default function App() {
         <AdminPanelModal onClose={() => setAdminPanelOpen(false)} />
       )}
 
-      {auditLogOpen && (
-        <AuditLogModal onClose={() => setAuditLogOpen(false)} />
+      {myAccountOpen && (
+        <MyAccountModal session={session} currentUserRole={currentUserRole} onClose={() => setMyAccountOpen(false)} />
       )}
     </div>
   );

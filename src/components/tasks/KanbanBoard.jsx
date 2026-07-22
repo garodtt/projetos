@@ -225,6 +225,7 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
       ) : (
         <div className="kanban-board">
           {sortedColumns.map((col, idx) => {
+            const todayStr = new Date().toISOString().slice(0, 10);
             const items = cardsInColumn(col.id);
             return (
               <div key={col.id} className="kanban-column">
@@ -255,13 +256,17 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
                 >
                   {items.map(v => {
                     const borderColor = col.color || (v.priority === 'urgente' ? '#dc2626' : null);
+                    const isOverdue = Boolean(v.due_date) && v.due_date < todayStr && !col.is_version_column;
+                    const checklistTotal = (v.checklist || []).length;
+                    const checklistDone = (v.checklist || []).filter(c => c.done).length;
                     return (
                       <div
                         key={v.id}
                         className={
                           'kanban-card' +
                           (draggedId === v.id ? ' dragging' : '') +
-                          (dragOverInfo?.cardId === v.id ? ' drag-over-' + dragOverInfo.position : '')
+                          (dragOverInfo?.cardId === v.id ? ' drag-over-' + dragOverInfo.position : '') +
+                          (isOverdue ? ' kanban-card-overdue' : '')
                         }
                         style={borderColor ? { borderLeft: '3px solid ' + borderColor, paddingLeft: '7px' } : undefined}
                         draggable
@@ -272,11 +277,18 @@ export default function KanbanBoard({ projectId, onDataChanged, refreshTick, onV
                         onClick={() => openEditCard(v)}
                       >
                         {v.priority === 'urgente' && <span className="priority-tag">Urgente</span>}
+                        {isOverdue && <span className="overdue-tag">⚠ Atrasado</span>}
                         {v.complexity && <span className={'complexity-tag ' + v.complexity}>{COMPLEXITY_LABEL[v.complexity]}</span>}
                         {renderAttachmentsPreview(v.attachments)}
                         <strong>{v.title}</strong>
                         <small>{formatDate(v.change_date)} · {v.requester_name}</small>
                         {v.assignee_name && <small className="assignee-line">👤 {v.assignee_name}</small>}
+                        {v.due_date && (
+                          <small className={isOverdue ? 'due-date-line overdue' : 'due-date-line'}>📅 Prazo: {formatDate(v.due_date)}</small>
+                        )}
+                        {checklistTotal > 0 && (
+                          <small className="checklist-progress-line">☑ {checklistDone}/{checklistTotal}</small>
+                        )}
                         <p>{v.description || ''}</p>
                       </div>
                     );
